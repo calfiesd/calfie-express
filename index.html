@@ -1,0 +1,260 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ParcelPilot | Discount Shipping Labels for Your Customers</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="page-shell">
+    <header class="hero">
+      <nav class="topbar">
+        <div class="brand">
+          <span class="brand-mark">PP</span>
+          <span class="brand-name">ParcelPilot</span>
+        </div>
+        <div class="topbar-links">
+          <a href="#workflow">How it works</a>
+          <a href="#builder">Create label</a>
+          <a href="#ops">Operations</a>
+        </div>
+      </nav>
+
+      <div class="hero-grid">
+        <section class="hero-copy">
+          <p class="eyebrow">Customer-facing shipping portal</p>
+          <h1>Create UPS and FedEx labels online using your negotiated discounts.</h1>
+          <p class="hero-text">
+            This MVP shows the exact experience you need: customer quote collection, markup pricing,
+            payment-ready totals, and instant label fulfillment after purchase.
+          </p>
+          <div class="hero-actions">
+            <a class="button button-primary" href="#builder">Launch label builder</a>
+            <a class="button button-secondary" href="#blueprint">Read the blueprint</a>
+          </div>
+          <ul class="hero-points">
+            <li>Connect your UPS and FedEx accounts through a secure server</li>
+            <li>Show discounted carrier rates with your own margin rules</li>
+            <li>Email labels, tracking links, and invoices automatically</li>
+          </ul>
+        </section>
+
+        <aside class="hero-panel">
+          <div class="metric-card">
+            <span class="metric-label">Example margin</span>
+            <strong id="heroMargin">$4.55</strong>
+            <span class="metric-note">Retail price above your carrier cost</span>
+          </div>
+          <div class="metric-card warm">
+            <span class="metric-label">Customer saves</span>
+            <strong id="heroSavings">38%</strong>
+            <span class="metric-note">Versus typical counter pricing</span>
+          </div>
+          <div class="panel-note">
+            <p>Recommended flow</p>
+            <ol>
+              <li>Customer enters shipment details</li>
+              <li>Your backend requests live carrier rates</li>
+              <li>Customer pays</li>
+              <li>Backend buys the label and sends PDF + tracking</li>
+            </ol>
+          </div>
+        </aside>
+      </div>
+    </header>
+
+    <main>
+      <section class="workflow" id="workflow">
+        <div class="section-heading">
+          <p class="eyebrow">MVP workflow</p>
+          <h2>Everything a small shipping-label marketplace needs</h2>
+        </div>
+        <div class="workflow-grid">
+          <article>
+            <span>01</span>
+            <h3>Rate engine</h3>
+            <p>Collect origin, destination, box size, weight, signature, insurance, and ship date.</p>
+          </article>
+          <article>
+            <span>02</span>
+            <h3>Markup rules</h3>
+            <p>Apply flat, percentage, or service-specific margins while preserving your carrier discount.</p>
+          </article>
+          <article>
+            <span>03</span>
+            <h3>Secure checkout</h3>
+            <p>Accept payment before buying a label so you never fund unpaid shipments.</p>
+          </article>
+          <article>
+            <span>04</span>
+            <h3>Label delivery</h3>
+            <p>Store the PDF, show tracking, allow reprint, and support void windows for refunds.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="builder" id="builder">
+        <div class="section-heading">
+          <p class="eyebrow">Interactive prototype</p>
+          <h2>Customer quote and label purchase flow</h2>
+        </div>
+
+        <div class="builder-grid">
+          <form class="quote-form" id="quoteForm">
+            <div class="field-row">
+              <label>
+                From ZIP
+                <input type="text" name="fromZip" value="91710" maxlength="5" required>
+              </label>
+              <label>
+                To ZIP
+                <input type="text" name="toZip" value="10001" maxlength="5" required>
+              </label>
+            </div>
+
+            <div class="field-row">
+              <label>
+                Weight (lb)
+                <input type="number" name="weight" value="4" min="1" step="0.1" required>
+              </label>
+              <label>
+                Declared value ($)
+                <input type="number" name="declaredValue" value="120" min="0" step="1">
+              </label>
+            </div>
+
+            <div class="field-row triple">
+              <label>
+                Length
+                <input type="number" name="length" value="12" min="1" step="1" required>
+              </label>
+              <label>
+                Width
+                <input type="number" name="width" value="10" min="1" step="1" required>
+              </label>
+              <label>
+                Height
+                <input type="number" name="height" value="8" min="1" step="1" required>
+              </label>
+            </div>
+
+            <div class="field-row">
+              <label>
+                Speed
+                <select name="speed">
+                  <option value="economy">Economy</option>
+                  <option value="standard" selected>Standard</option>
+                  <option value="express">Express</option>
+                </select>
+              </label>
+              <label>
+                Package type
+                <select name="packageType">
+                  <option value="custom">Custom box</option>
+                  <option value="ups-envelope">UPS Express Envelope</option>
+                  <option value="fedex-pak">FedEx Pak</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="toggle-row">
+              <label class="checkbox">
+                <input type="checkbox" name="signature">
+                <span>Adult signature required</span>
+              </label>
+              <label class="checkbox">
+                <input type="checkbox" name="residential" checked>
+                <span>Residential delivery</span>
+              </label>
+            </div>
+
+            <div class="actions-row">
+              <button class="button button-primary" type="submit">Get live-style rates</button>
+              <button class="button button-secondary" type="button" id="resetButton">Reset</button>
+            </div>
+          </form>
+
+          <div class="results-panel">
+            <div class="results-header">
+              <h3>Available services</h3>
+              <p>This demo uses example calculations. In production, your server would call UPS/FedEx APIs here.</p>
+            </div>
+            <div id="rateCards" class="rate-cards"></div>
+            <div class="checkout-card" id="checkoutCard">
+              <h3>Selected label</h3>
+              <div id="selectedSummary" class="selected-summary"></div>
+              <button class="button button-primary full-width" id="purchaseButton" type="button">Simulate customer checkout</button>
+              <p class="checkout-note">Production version: charge card, then create shipment, then send label PDF and tracking.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="ops" id="ops">
+        <div class="section-heading">
+          <p class="eyebrow">Operations dashboard</p>
+          <h2>What your admin side needs behind the scenes</h2>
+        </div>
+        <div class="ops-grid">
+          <article>
+            <h3>Orders and reprints</h3>
+            <p>Search by email, order ID, or tracking number. Re-send labels and invoices instantly.</p>
+          </article>
+          <article>
+            <h3>Fraud controls</h3>
+            <p>Velocity limits, address validation, AVS/CVV checks, and auto-holds for risky shipments.</p>
+          </article>
+          <article>
+            <h3>Carrier accounting</h3>
+            <p>Track your actual carrier cost, customer sale price, voided labels, and refund exposure.</p>
+          </article>
+          <article>
+            <h3>Support tools</h3>
+            <p>Void labels inside carrier cutoff windows and maintain a full audit trail for disputes.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="blueprint" id="blueprint">
+        <div class="section-heading">
+          <p class="eyebrow">Build blueprint</p>
+          <h2>Recommended production architecture</h2>
+        </div>
+        <div class="blueprint-grid">
+          <div class="blueprint-card">
+            <h3>Frontend</h3>
+            <p>Marketing site, quote form, checkout, account login, order history, reprints, and tracking view.</p>
+          </div>
+          <div class="blueprint-card">
+            <h3>Backend API</h3>
+            <p>Securely stores carrier credentials, normalizes UPS/FedEx responses, applies pricing rules, and purchases labels.</p>
+          </div>
+          <div class="blueprint-card">
+            <h3>Payments</h3>
+            <p>Stripe or similar for cards, webhooks for paid orders, refunds, and failed-payment handling.</p>
+          </div>
+          <div class="blueprint-card">
+            <h3>Data layer</h3>
+            <p>Users, addresses, shipments, rate quotes, label files, tracking events, and void/refund records.</p>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="purchaseDialog">
+    <div class="dialog-body">
+      <p class="eyebrow">Checkout result</p>
+      <h3>Label order captured</h3>
+      <p id="dialogText"></p>
+      <button class="button button-primary" id="closeDialog" type="button">Close</button>
+    </div>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>
