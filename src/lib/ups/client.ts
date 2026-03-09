@@ -25,17 +25,17 @@ export async function getUpsAccessToken() {
   return payload.access_token as string;
 }
 
-export async function requestUpsShopRates(accessToken: string, input: ShipmentInput) {
+export async function requestUpsShopRates(accessToken: string, input: ShipmentInput, accountNumber: string) {
   const body = {
     RateRequest: {
       Request: {
         TransactionReference: {
-          CustomerContext: "CALFIE EXPRESS rate request"
+          CustomerContext: `CALFIE EXPRESS rate request ${accountNumber}`
         }
       },
       Shipment: {
         Shipper: {
-          ShipperNumber: env.UPS_ACCOUNT_NUMBER,
+          ShipperNumber: accountNumber,
           Address: {
             PostalCode: input.shipFrom.postalCode,
             CountryCode: input.shipFrom.countryCode
@@ -52,6 +52,14 @@ export async function requestUpsShopRates(accessToken: string, input: ShipmentIn
           Address: {
             PostalCode: input.shipFrom.postalCode,
             CountryCode: input.shipFrom.countryCode
+          }
+        },
+        PaymentDetails: {
+          ShipmentCharge: {
+            Type: "01",
+            BillShipper: {
+              AccountNumber: accountNumber
+            }
           }
         },
         Package: {
@@ -81,7 +89,7 @@ export async function requestUpsShopRates(accessToken: string, input: ShipmentIn
     method: "POST",
     headers: {
       Authorization: `Bearer ${accessToken}`,
-      transId: `calfie-${Date.now()}`,
+      transId: `calfie-${accountNumber}-${Date.now()}`,
       transactionSrc: "CALFIEEXPRESS",
       "Content-Type": "application/json"
     },
@@ -90,7 +98,8 @@ export async function requestUpsShopRates(accessToken: string, input: ShipmentIn
   });
 
   if (!response.ok) {
-    throw new Error(`UPS rating failed with status ${response.status}.`);
+    const text = await response.text();
+    throw new Error(`UPS rating failed for account ${accountNumber} with status ${response.status}: ${text}`);
   }
 
   return response.json();
@@ -102,6 +111,12 @@ export async function requestUpsShipment(accessToken: string, args: {
   rate: CarrierRate;
 }) {
   const { orderId, shipment, rate } = args;
+  const accountNumber = rate.accountNumber ?? env.UPS_ACCOUNT_NUMBER ?? env.UPS_ACCOUNT_NUMBERS[0];
+
+  if (!accountNumber) {
+    throw new Error("No UPS account number is available for shipment purchase.");
+  }
+
   const body = {
     ShipmentRequest: {
       Request: {
@@ -114,7 +129,7 @@ export async function requestUpsShipment(accessToken: string, args: {
         Shipper: {
           Name: shipment.shipFrom.name,
           AttentionName: shipment.shipFrom.name,
-          ShipperNumber: env.UPS_ACCOUNT_NUMBER,
+          ShipperNumber: accountNumber,
           Phone: {
             Number: shipment.shipFrom.phone
           },
@@ -159,7 +174,7 @@ export async function requestUpsShipment(accessToken: string, args: {
           ShipmentCharge: {
             Type: "01",
             BillShipper: {
-              AccountNumber: env.UPS_ACCOUNT_NUMBER
+              AccountNumber: accountNumber
             }
           }
         },
@@ -200,7 +215,7 @@ export async function requestUpsShipment(accessToken: string, args: {
     method: "POST",
     headers: {
       Authorization: `Bearer ${accessToken}`,
-      transId: `calfie-ship-${Date.now()}`,
+      transId: `calfie-ship-${accountNumber}-${Date.now()}`,
       transactionSrc: "CALFIEEXPRESS",
       "Content-Type": "application/json"
     },

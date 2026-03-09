@@ -7,6 +7,7 @@ const envSchema = z.object({
   UPS_CLIENT_ID: z.string().optional(),
   UPS_CLIENT_SECRET: z.string().optional(),
   UPS_ACCOUNT_NUMBER: z.string().optional(),
+  UPS_ACCOUNT_NUMBERS: z.string().optional(),
   UPS_API_BASE_URL: z.string().url().default("https://wwwcie.ups.com"),
   ALLOW_LIVE_LABEL_PURCHASE: z.enum(["true", "false"]).default("false"),
   STRIPE_SECRET_KEY: z.string().optional(),
@@ -25,6 +26,7 @@ const parsed = envSchema.parse({
   UPS_CLIENT_ID: process.env.UPS_CLIENT_ID,
   UPS_CLIENT_SECRET: process.env.UPS_CLIENT_SECRET,
   UPS_ACCOUNT_NUMBER: process.env.UPS_ACCOUNT_NUMBER,
+  UPS_ACCOUNT_NUMBERS: process.env.UPS_ACCOUNT_NUMBERS,
   UPS_API_BASE_URL: process.env.UPS_API_BASE_URL,
   ALLOW_LIVE_LABEL_PURCHASE: process.env.ALLOW_LIVE_LABEL_PURCHASE,
   STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
@@ -36,7 +38,25 @@ const parsed = envSchema.parse({
   DEMO_CUSTOMER_PASSWORD: process.env.DEMO_CUSTOMER_PASSWORD
 });
 
+function parseUpsAccounts() {
+  const raw = parsed.UPS_ACCOUNT_NUMBERS?.trim();
+
+  if (raw) {
+    return raw
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean);
+  }
+
+  if (parsed.UPS_ACCOUNT_NUMBER) {
+    return [parsed.UPS_ACCOUNT_NUMBER];
+  }
+
+  return [] as string[];
+}
+
 export const env = {
   ...parsed,
-  ALLOW_LIVE_LABEL_PURCHASE: parsed.ALLOW_LIVE_LABEL_PURCHASE === "true"
+  ALLOW_LIVE_LABEL_PURCHASE: parsed.ALLOW_LIVE_LABEL_PURCHASE === "true",
+  UPS_ACCOUNT_NUMBERS: parseUpsAccounts()
 };

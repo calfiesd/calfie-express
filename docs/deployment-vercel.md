@@ -49,6 +49,7 @@ Add these in Vercel Project Settings -> Environment Variables.
 - `UPS_CLIENT_ID`
 - `UPS_CLIENT_SECRET`
 - `UPS_ACCOUNT_NUMBER`
+- `UPS_ACCOUNT_NUMBERS` (comma-separated when you want to compare multiple UPS discounts per quote)
 - `UPS_API_BASE_URL=https://onlinetools.ups.com`
 - `STRIPE_SECRET_KEY`
 - `STRIPE_PUBLISHABLE_KEY`

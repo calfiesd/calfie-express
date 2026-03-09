@@ -43,6 +43,8 @@ export type CarrierRate = {
   carrierCost: number;
   customerPrice: number;
   currency: "USD";
+  accountNumber?: string;
+  accountLabel?: string;
 };
 
 export type UpsQuoteResponse = {

@@ -13,6 +13,10 @@ export type UpsRateResult = {
 
 const defaultPricingProfile = demoCustomer.pricingProfile;
 
+function getConfiguredUpsAccounts() {
+  return env.UPS_ACCOUNT_NUMBERS;
+}
+
 function buildDemoRates(input: ShipmentInput, pricingProfile: PricingProfile = defaultPricingProfile): CarrierRate[] {
   const zoneDistance = Math.abs(Number(input.shipFrom.postalCode.slice(0, 3)) - Number(input.shipTo.postalCode.slice(0, 3)));
   const dimensionalWeight = (input.packageLength * input.packageWidth * input.packageHeight) / 139;
@@ -20,6 +24,7 @@ function buildDemoRates(input: ShipmentInput, pricingProfile: PricingProfile = d
   const baseCost = Number((8.75 + zoneDistance / 100 + billableWeight * 1.65).toFixed(2));
   const groundCost = baseCost;
   const airCost = Number((baseCost * 1.68).toFixed(2));
+  const defaultAccount = env.UPS_ACCOUNT_NUMBER ?? "demo-account";
 
   return [
     {
@@ -29,7 +34,9 @@ function buildDemoRates(input: ShipmentInput, pricingProfile: PricingProfile = d
       transitDays: 4,
       carrierCost: groundCost,
       customerPrice: applyCustomerPricing(groundCost, pricingProfile, input),
-      currency: "USD"
+      currency: "USD",
+      accountNumber: defaultAccount,
+      accountLabel: defaultAccount
     },
     {
       carrier: "UPS",
@@ -38,7 +45,9 @@ function buildDemoRates(input: ShipmentInput, pricingProfile: PricingProfile = d
       transitDays: 2,
       carrierCost: airCost,
       customerPrice: applyCustomerPricing(airCost, pricingProfile, input),
-      currency: "USD"
+      currency: "USD",
+      accountNumber: defaultAccount,
+      accountLabel: defaultAccount
     }
   ];
 }
@@ -56,7 +65,7 @@ function serviceNameFromCode(serviceCode: string) {
   return map[serviceCode] ?? `UPS ${serviceCode}`;
 }
 
-function normalizeUpsRates(payload: any, input: ShipmentInput, pricingProfile: PricingProfile): CarrierRate[] {
+function normalizeUpsRates(payload: any, input: ShipmentInput, pricingProfile: PricingProfile, accountNumber: string): CarrierRate[] {
   const ratedShipment = payload?.RateResponse?.RatedShipment;
   const shipments = Array.isArray(ratedShipment) ? ratedShipment : ratedShipment ? [ratedShipment] : [];
 
@@ -71,9 +80,24 @@ function normalizeUpsRates(payload: any, input: ShipmentInput, pricingProfile: P
       transitDays: Number(shipment?.GuaranteedDelivery?.BusinessDaysInTransit ?? 0),
       carrierCost,
       customerPrice: applyCustomerPricing(carrierCost, pricingProfile, input),
-      currency: "USD" as const
+      currency: "USD" as const,
+      accountNumber,
+      accountLabel: accountNumber
     };
   });
+}
+
+function chooseLowestRatesByService(rates: CarrierRate[]) {
+  const bestByService = new Map<string, CarrierRate>();
+
+  for (const rate of rates) {
+    const current = bestByService.get(rate.serviceCode);
+    if (!current || rate.customerPrice < current.customerPrice) {
+      bestByService.set(rate.serviceCode, rate);
+    }
+  }
+
+  return Array.from(bestByService.values()).sort((left, right) => left.customerPrice - right.customerPrice);
 }
 
 function normalizeUpsShipment(payload: any, fallbackRate: CarrierRate): PurchasedLabel {
@@ -100,7 +124,8 @@ export class UpsAdapter implements CarrierAdapter {
   }
 
   async getRatesWithDiagnostics(input: ShipmentInput, pricingProfile: PricingProfile = defaultPricingProfile): Promise<UpsRateResult> {
-    if (!env.UPS_CLIENT_ID || !env.UPS_CLIENT_SECRET || !env.UPS_ACCOUNT_NUMBER) {
+    const accounts = getConfiguredUpsAccounts();
+    if (!env.UPS_CLIENT_ID || !env.UPS_CLIENT_SECRET || accounts.length === 0) {
       return {
         mode: "fallback",
         rates: buildDemoRates(input, pricingProfile),
@@ -118,21 +143,38 @@ export class UpsAdapter implements CarrierAdapter {
         };
       }
 
-      const payload = await requestUpsShopRates(accessToken, input);
-      const rates = normalizeUpsRates(payload, input, pricingProfile);
+      const accountResults = await Promise.allSettled(
+        accounts.map(async (accountNumber) => {
+          const payload = await requestUpsShopRates(accessToken, input, accountNumber);
+          return normalizeUpsRates(payload, input, pricingProfile, accountNumber);
+        })
+      );
+
+      const liveRates = accountResults.flatMap((result) => result.status === "fulfilled" ? result.value : []);
+      const failures = accountResults.filter((result) => result.status === "rejected").length;
+      const rates = chooseLowestRatesByService(liveRates);
 
       if (rates.length === 0) {
+        const diagnostic = accountResults
+          .filter((result): result is PromiseRejectedResult => result.status === "rejected")
+          .map((result) => result.reason instanceof Error ? result.reason.message : String(result.reason))
+          .join(" | ");
+
         return {
           mode: "fallback",
           rates: buildDemoRates(input, pricingProfile),
-          diagnostic: "UPS responded, but no rated shipments were returned."
+          diagnostic: diagnostic || "UPS responded, but no rated shipments were returned."
         };
       }
+
+      const diagnostic = failures > 0
+        ? `Live UPS rating returned lowest prices across ${accounts.length} accounts with ${failures} account failure(s).`
+        : `Live UPS rating returned lowest prices across ${accounts.length} UPS account(s).`;
 
       return {
         mode: "live",
         rates,
-        diagnostic: "Live UPS rating response returned successfully."
+        diagnostic
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown UPS error";
@@ -149,7 +191,8 @@ export class UpsAdapter implements CarrierAdapter {
       throw new Error("Live UPS label purchase is disabled. Set ALLOW_LIVE_LABEL_PURCHASE=true only when you are ready for real carrier charges.");
     }
 
-    if (!env.UPS_CLIENT_ID || !env.UPS_CLIENT_SECRET || !env.UPS_ACCOUNT_NUMBER) {
+    const accounts = getConfiguredUpsAccounts();
+    if (!env.UPS_CLIENT_ID || !env.UPS_CLIENT_SECRET || accounts.length === 0) {
       return {
         carrier: "UPS",
         serviceName: args.rate.serviceName,
