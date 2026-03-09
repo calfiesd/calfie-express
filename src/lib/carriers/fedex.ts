@@ -1,12 +1,13 @@
-﻿import { env } from "@/lib/config";
-import type { CarrierRate, PurchasedLabel, ShipmentInput } from "@/lib/domain-types";
+import type { CarrierRate, PurchasedLabel, PricingProfile, ShipmentInput } from "@/lib/domain-types";
 import { applyCustomerPricing } from "@/lib/pricing";
 import { demoCustomer } from "@/lib/mock-data";
 import type { CarrierAdapter } from "@/lib/carriers/base";
 
+const defaultPricingProfile = demoCustomer.pricingProfile;
+
 export class FedExAdapter implements CarrierAdapter {
-  async getRates(input: ShipmentInput): Promise<CarrierRate[]> {
-    const zoneDistance = Math.abs(Number(input.shipFromPostalCode.slice(0, 3)) - Number(input.shipToPostalCode.slice(0, 3)));
+  async getRates(input: ShipmentInput, pricingProfile: PricingProfile = defaultPricingProfile): Promise<CarrierRate[]> {
+    const zoneDistance = Math.abs(Number(input.shipFrom.postalCode.slice(0, 3)) - Number(input.shipTo.postalCode.slice(0, 3)));
     const dimensionalWeight = (input.packageLength * input.packageWidth * input.packageHeight) / 139;
     const billableWeight = Math.max(input.packageWeight, dimensionalWeight);
     const baseCost = Number((9.1 + zoneDistance / 95 + billableWeight * 1.72).toFixed(2));
@@ -21,7 +22,7 @@ export class FedExAdapter implements CarrierAdapter {
         serviceName: "FedEx Ground",
         transitDays: 4,
         carrierCost: groundCost,
-        customerPrice: applyCustomerPricing(groundCost, demoCustomer.pricingProfile, input),
+        customerPrice: applyCustomerPricing(groundCost, pricingProfile, input),
         currency: "USD"
       },
       {
@@ -30,24 +31,20 @@ export class FedExAdapter implements CarrierAdapter {
         serviceName: "FedEx Priority Overnight",
         transitDays: 1,
         carrierCost: overnightCost,
-        customerPrice: applyCustomerPricing(overnightCost, demoCustomer.pricingProfile, input),
+        customerPrice: applyCustomerPricing(overnightCost, pricingProfile, input),
         currency: "USD"
       }
     ];
   }
 
-  async buyLabel(orderId: string): Promise<PurchasedLabel> {
-    if (!env.FEDEX_API_KEY || !env.FEDEX_SECRET_KEY) {
-      return {
-        carrier: "FEDEX",
-        serviceName: "FedEx Ground",
-        trackingNumber: `FDX-DEMO-${orderId.slice(-6).toUpperCase()}`,
-        labelUrl: "/labels/demo-fedex-label.pdf",
-        carrierCharge: 15.35
-      };
-    }
-
-    throw new Error("FedEx production integration not implemented yet. Add OAuth and shipment purchase flow here.");
+  async buyLabel(args: { orderId: string; shipment: ShipmentInput; rate: CarrierRate }): Promise<PurchasedLabel> {
+    return {
+      carrier: "FEDEX",
+      serviceName: args.rate.serviceName,
+      trackingNumber: `FDX-DEMO-${args.orderId.slice(-6).toUpperCase()}`,
+      labelUrl: "/labels/demo-fedex-label.pdf",
+      carrierCharge: args.rate.carrierCost
+    };
   }
 
   async voidLabel(): Promise<{ accepted: boolean }> {
