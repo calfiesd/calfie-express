@@ -145,6 +145,10 @@ export class UpsAdapter implements CarrierAdapter {
   }
 
   async buyLabel(args: { orderId: string; shipment: ShipmentInput; rate: CarrierRate }): Promise<PurchasedLabel> {
+    if (!env.ALLOW_LIVE_LABEL_PURCHASE) {
+      throw new Error("Live UPS label purchase is disabled. Set ALLOW_LIVE_LABEL_PURCHASE=true only when you are ready for real carrier charges.");
+    }
+
     if (!env.UPS_CLIENT_ID || !env.UPS_CLIENT_SECRET || !env.UPS_ACCOUNT_NUMBER) {
       return {
         carrier: "UPS",
