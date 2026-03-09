@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { redirect } from "next/navigation";
 import { SiteNav } from "@/components/site-nav";
 import { DashboardClient } from "@/components/dashboard/dashboard-client";
