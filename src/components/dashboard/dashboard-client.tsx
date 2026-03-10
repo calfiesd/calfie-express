@@ -12,6 +12,47 @@ import type {
   UpsQuoteResponse
 } from "@/lib/domain-types";
 
+const buttonBaseStyle = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: "44px",
+  padding: "0 16px",
+  borderRadius: "999px",
+  border: "1px solid rgba(29, 36, 48, 0.12)",
+  font: "inherit",
+  lineHeight: "1",
+  textDecoration: "none"
+} as const;
+
+const primaryButtonStyle = {
+  ...buttonBaseStyle,
+  backgroundColor: "#bb512f",
+  borderColor: "#bb512f",
+  color: "#ffffff"
+} as const;
+
+const secondaryButtonStyle = {
+  ...buttonBaseStyle,
+  backgroundColor: "#ffffff",
+  color: "#1d2430"
+} as const;
+
+const disabledPrimaryButtonStyle = {
+  ...buttonBaseStyle,
+  backgroundColor: "#d7c6b4",
+  borderColor: "#d7c6b4",
+  color: "#fff7ef",
+  cursor: "not-allowed"
+} as const;
+
+const disabledSecondaryButtonStyle = {
+  ...buttonBaseStyle,
+  backgroundColor: "#efe6d8",
+  borderColor: "rgba(29, 36, 48, 0.12)",
+  color: "#8b8173",
+  cursor: "not-allowed"
+} as const;
 function money(value: number | undefined) {
   if (typeof value !== "number" || Number.isNaN(value)) {
     return "-";
@@ -259,7 +300,7 @@ export function DashboardClient({
             <label className="field"><span>Simple Rate</span><select value={shipment.simpleRate ? "yes" : "no"} onChange={(e) => updateField("simpleRate", e.target.value === "yes")}><option value="yes">Yes</option><option value="no">No</option></select></label>
           </div>
           <div className="actions">
-            <button className="button primary" type="button" onClick={submitQuote} disabled={isQuotePending}>{isQuotePending ? "Loading quotes..." : "Get carrier quotes"}</button>
+            <button className="button primary" style={isQuotePending ? disabledPrimaryButtonStyle : primaryButtonStyle} type="button" onClick={submitQuote} disabled={isQuotePending}>{isQuotePending ? "Loading quotes..." : "Get carrier quotes"}</button>
           </div>
           {quoteError ? <p className="muted">{quoteError}</p> : null}
         </div>
@@ -277,8 +318,8 @@ export function DashboardClient({
               {selectedRate.carrier === "UPS" ? <p className="muted">Simple Rate: {shipment.simpleRate ? "Requested" : "Off"}</p> : null}
               {selectedRate.carrier === "FEDEX" ? <p className="muted">FedEx labels use the same live-purchase safety switch as UPS. Keep ALLOW_LIVE_LABEL_PURCHASE=false until you are ready for real carrier charges.</p> : null}
               <div className="actions">
-                <button className="button primary" type="button" onClick={createOrderDraft} disabled={!selectedRate || isOrderPending}>{isOrderPending ? "Creating draft..." : "Create order draft"}</button>
-                <button className="button" type="button" onClick={createCheckoutDraft} disabled={isCheckoutPending || !orderDraft}>{isCheckoutPending ? "Preparing checkout..." : "Prepare checkout"}</button>
+                <button className="button primary" style={!selectedRate || isOrderPending ? disabledPrimaryButtonStyle : primaryButtonStyle} type="button" onClick={createOrderDraft} disabled={!selectedRate || isOrderPending}>{isOrderPending ? "Creating draft..." : "Create order draft"}</button>
+                <button className="button" style={isCheckoutPending || !orderDraft ? disabledSecondaryButtonStyle : secondaryButtonStyle} type="button" onClick={createCheckoutDraft} disabled={isCheckoutPending || !orderDraft}>{isCheckoutPending ? "Preparing checkout..." : "Prepare checkout"}</button>
               </div>
             </>
           ) : <p className="muted">Get a quote to choose a carrier service.</p>}
@@ -358,5 +399,6 @@ export function DashboardClient({
     </>
   );
 }
+
 
 

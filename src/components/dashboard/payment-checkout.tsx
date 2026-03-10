@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { FormEvent, useMemo, useState } from "react";
 import { Elements, PaymentElement, useElements, useStripe } from "@stripe/react-stripe-js";
@@ -17,6 +17,34 @@ type PaymentCheckoutProps = {
 };
 
 type InnerProps = PaymentCheckoutProps;
+
+const checkoutButtonBaseStyle = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: "44px",
+  padding: "0 16px",
+  borderRadius: "999px",
+  border: "1px solid #bb512f",
+  font: "inherit",
+  lineHeight: "1",
+  textDecoration: "none"
+} as const;
+
+const checkoutButtonStyle = {
+  ...checkoutButtonBaseStyle,
+  backgroundColor: "#bb512f",
+  color: "#ffffff"
+} as const;
+
+const checkoutButtonDisabledStyle = {
+  ...checkoutButtonBaseStyle,
+  backgroundColor: "#d7c6b4",
+  borderColor: "#d7c6b4",
+  color: "#fff7ef",
+  cursor: "not-allowed"
+} as const;
+
 
 function InnerPaymentForm({ checkoutDraft, orderDraft, onCompleted }: InnerProps) {
   const stripe = useStripe();
@@ -97,7 +125,7 @@ function InnerPaymentForm({ checkoutDraft, orderDraft, onCompleted }: InnerProps
     <form onSubmit={handleSubmit}>
       {checkoutDraft.paymentMode === "live" ? <PaymentElement /> : null}
       <div className="actions">
-        <button className="button primary" type="submit" disabled={submitting}>
+        <button className="button primary" style={submitting ? checkoutButtonDisabledStyle : checkoutButtonStyle} type="submit" disabled={submitting}>
           {submitting ? "Confirming payment..." : checkoutDraft.paymentMode === "live" ? "Pay and buy label" : "Simulate payment completion"}
         </button>
       </div>
