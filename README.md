@@ -15,6 +15,7 @@ This workspace now contains two layers:
 - Phase 1 carrier: UPS only
 - FedEx: planned for phase 2
 - UPS OAuth, rating, and shipping: wired
+- Multi-account UPS quoting: lowest configured account per service is selected automatically
 - Stripe checkout + webhooks: wired
 - PostgreSQL persistence: wired
 - Email notifications: supported when Postmark env vars are configured

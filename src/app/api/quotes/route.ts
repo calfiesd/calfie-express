@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { UpsAdapter } from "@/lib/carriers/ups";
+import { FedExAdapter } from "@/lib/carriers/fedex";
 import { demoShipment } from "@/lib/mock-data";
 import { requireUser } from "@/lib/auth/session";
 
@@ -7,7 +8,7 @@ export async function POST(request: Request) {
   const user = await requireUser();
 
   if (!user?.pricingProfile) {
-    return NextResponse.json({ message: "Sign in to request UPS quotes." }, { status: 401 });
+    return NextResponse.json({ message: "Sign in to request carrier quotes." }, { status: 401 });
   }
 
   const body = await request.json().catch(() => null);
@@ -15,20 +16,28 @@ export async function POST(request: Request) {
     ...(body?.shipment ?? demoShipment),
     userId: user.id
   };
-  const result = await new UpsAdapter().getRatesWithDiagnostics(shipment, {
+  const pricingProfile = {
     userId: user.id,
     markupPercent: Number(user.pricingProfile.markupPercent),
     flatFee: Number(user.pricingProfile.flatFee),
     minimumProfit: Number(user.pricingProfile.minimumProfit),
     residentialSurcharge: Number(user.pricingProfile.residentialSurcharge),
     signatureSurcharge: Number(user.pricingProfile.signatureSurcharge)
-  });
+  };
+
+  const upsResult = await new UpsAdapter().getRatesWithDiagnostics(shipment, pricingProfile);
+  const fedexRates = await new FedExAdapter().getRates(shipment, pricingProfile);
+  const rates = [...upsResult.rates, ...fedexRates].sort((left, right) => left.customerPrice - right.customerPrice);
+  const fedexDiagnostic = fedexRates.length > 0
+    ? "FedEx comparison is enabled with placeholder account-rate logic until live FedEx API credentials are connected."
+    : "FedEx comparison returned no rates.";
 
   return NextResponse.json({
     shipment,
-    rates: result.rates,
-    source: result.mode,
-    diagnostic: result.diagnostic,
-    note: "UPS-first quote endpoint. Returns live UPS rates when available, otherwise demo fallback pricing with diagnostics."
+    rates,
+    source: upsResult.mode,
+    diagnostic: [upsResult.diagnostic, fedexDiagnostic].filter(Boolean).join(" || "),
+    debugAccounts: upsResult.debugAccounts,
+    note: "Carrier comparison endpoint. UPS uses your single active UPS account. FedEx rates are comparison-only until live FedEx API credentials are connected."
   });
 }

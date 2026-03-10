@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/db";
 import { UpsAdapter } from "@/lib/carriers/ups";
+import { FedExAdapter } from "@/lib/carriers/fedex";
+import type { CarrierAdapter } from "@/lib/carriers/base";
 import type { CarrierRate, PurchasedLabel, ShipmentInput } from "@/lib/domain-types";
 import { sendOrderEmail } from "@/lib/notifications/email";
 
@@ -30,18 +32,23 @@ function existingPurchase(order: {
   } satisfies PurchasedLabel;
 }
 
+function getCarrierAdapter(carrier: CarrierRate["carrier"]): CarrierAdapter {
+  return carrier === "FEDEX" ? new FedExAdapter() : new UpsAdapter();
+}
+
 async function sendPurchaseSuccessEmail(args: {
   email: string;
   orderId: string;
   amount: number;
   trackingNumber: string;
   labelUrl: string;
+  carrier: CarrierRate["carrier"];
 }) {
   await sendOrderEmail({
     to: args.email,
     subject: `CALFIE EXPRESS label purchased: ${args.orderId}`,
-    htmlBody: `<p>Your UPS label is ready.</p><p><strong>Order:</strong> ${args.orderId}<br/><strong>Tracking:</strong> ${args.trackingNumber}<br/><strong>Charged:</strong> $${args.amount.toFixed(2)}</p><p><a href="${args.labelUrl}">Open label</a></p>`,
-    textBody: `Your UPS label is ready.\nOrder: ${args.orderId}\nTracking: ${args.trackingNumber}\nCharged: $${args.amount.toFixed(2)}\nLabel: ${args.labelUrl}`
+    htmlBody: `<p>Your ${args.carrier} label is ready.</p><p><strong>Order:</strong> ${args.orderId}<br/><strong>Tracking:</strong> ${args.trackingNumber}<br/><strong>Charged:</strong> $${args.amount.toFixed(2)}</p><p><a href="${args.labelUrl}">Open label</a></p>`,
+    textBody: `Your ${args.carrier} label is ready.\nOrder: ${args.orderId}\nTracking: ${args.trackingNumber}\nCharged: $${args.amount.toFixed(2)}\nLabel: ${args.labelUrl}`
   }).catch(() => null);
 }
 
@@ -49,12 +56,13 @@ async function sendPurchaseFailureEmail(args: {
   email: string;
   orderId: string;
   diagnostic: string;
+  carrier: CarrierRate["carrier"];
 }) {
   await sendOrderEmail({
     to: args.email,
     subject: `CALFIE EXPRESS payment received for ${args.orderId}`,
-    htmlBody: `<p>Payment was received for order <strong>${args.orderId}</strong>, but automatic label purchase needs follow-up.</p><p>${args.diagnostic}</p>`,
-    textBody: `Payment was received for order ${args.orderId}, but automatic label purchase needs follow-up.\n${args.diagnostic}`
+    htmlBody: `<p>Payment was received for order <strong>${args.orderId}</strong>, but automatic ${args.carrier} label purchase needs follow-up.</p><p>${args.diagnostic}</p>`,
+    textBody: `Payment was received for order ${args.orderId}, but automatic ${args.carrier} label purchase needs follow-up.\n${args.diagnostic}`
   }).catch(() => null);
 }
 
@@ -109,7 +117,7 @@ export async function fulfillOrderAfterPayment(args: {
   }
 
   try {
-    const purchased = await new UpsAdapter().buyLabel({
+    const purchased = await getCarrierAdapter(rate.carrier).buyLabel({
       orderId: storedOrder.id,
       shipment,
       rate
@@ -131,16 +139,17 @@ export async function fulfillOrderAfterPayment(args: {
       orderId: storedOrder.id,
       amount: Number(storedOrder.quotedCustomerAmount),
       trackingNumber: purchased.trackingNumber,
-      labelUrl: purchased.labelUrl
+      labelUrl: purchased.labelUrl,
+      carrier: rate.carrier
     });
 
     return {
-      note: "Payment verified and UPS label purchased successfully. Order saved to PostgreSQL.",
+      note: `Payment verified and ${rate.carrier} label purchased successfully. Order saved to PostgreSQL.`,
       purchased,
       orderId: storedOrder.id
     };
   } catch (error) {
-    const diagnostic = error instanceof Error ? error.message : "Unknown UPS purchase error";
+    const diagnostic = error instanceof Error ? error.message : `Unknown ${rate.carrier} purchase error`;
 
     await prisma.order.update({
       where: { id: storedOrder.id },
@@ -153,11 +162,12 @@ export async function fulfillOrderAfterPayment(args: {
     await sendPurchaseFailureEmail({
       email: storedOrder.user.email,
       orderId: storedOrder.id,
-      diagnostic
+      diagnostic,
+      carrier: rate.carrier
     });
 
     return {
-      note: "Payment verified, but UPS label purchase failed. Payment state saved.",
+      note: `Payment verified, but ${rate.carrier} label purchase failed. Payment state saved.`,
       purchased: null,
       diagnostic,
       orderId: storedOrder.id

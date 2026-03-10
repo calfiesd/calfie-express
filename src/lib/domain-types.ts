@@ -32,6 +32,7 @@ export type ShipmentInput = {
   declaredValue: number;
   residential: boolean;
   signatureRequired: boolean;
+  simpleRate: boolean;
   shipDate?: string;
 };
 
@@ -47,11 +48,29 @@ export type CarrierRate = {
   accountLabel?: string;
 };
 
+export type UpsDebugRate = {
+  serviceCode: string;
+  serviceName: string;
+  totalCharges?: number;
+  negotiatedCharges?: number;
+  freightNetCharge?: number;
+  chargeSource: "published" | "negotiated" | "freight_net";
+  selectedCharge: number;
+};
+
+export type UpsDebugAccount = {
+  accountNumber: string;
+  status: "success" | "failure";
+  message?: string;
+  rates: UpsDebugRate[];
+};
+
 export type UpsQuoteResponse = {
   shipment: ShipmentInput;
   rates: CarrierRate[];
   source: "live" | "fallback";
   diagnostic?: string;
+  debugAccounts?: UpsDebugAccount[];
   note: string;
 };
 

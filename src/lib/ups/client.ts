@@ -1,6 +1,71 @@
 import { env } from "@/lib/config";
 import type { CarrierRate, ShipmentInput } from "@/lib/domain-types";
 
+type UpsSimpleRateCode = "XS" | "S" | "M" | "L" | "XL";
+
+function getUpsSimpleRateCode(
+  input: Pick<ShipmentInput, "simpleRate" | "packageLength" | "packageWidth" | "packageHeight" | "packageWeight" | "shipFrom" | "shipTo">
+): UpsSimpleRateCode | undefined {
+  if (!input.simpleRate) {
+    return undefined;
+  }
+
+  if (input.packageWeight > 50 || input.shipFrom.countryCode !== "US" || input.shipTo.countryCode !== "US") {
+    return undefined;
+  }
+
+  const cubicInches = input.packageLength * input.packageWidth * input.packageHeight;
+
+  if (cubicInches <= 0) {
+    return undefined;
+  }
+
+  if (cubicInches <= 100) {
+    return "XS";
+  }
+
+  if (cubicInches <= 250) {
+    return "S";
+  }
+
+  if (cubicInches <= 650) {
+    return "M";
+  }
+
+  if (cubicInches <= 1050) {
+    return "L";
+  }
+
+  if (cubicInches <= 1728) {
+    return "XL";
+  }
+
+  return undefined;
+}
+
+function buildUpsPackageServiceOptions(input: Pick<ShipmentInput, "declaredValue" | "signatureRequired">) {
+  const hasDeclaredValue = input.declaredValue > 0;
+  const hasSignature = input.signatureRequired;
+
+  if (!hasDeclaredValue && !hasSignature) {
+    return undefined;
+  }
+
+  return {
+    DeclaredValue: hasDeclaredValue
+      ? {
+          CurrencyCode: "USD",
+          MonetaryValue: String(input.declaredValue)
+        }
+      : undefined,
+    DeliveryConfirmation: hasSignature
+      ? {
+          DCISType: "2"
+        }
+      : undefined
+  };
+}
+
 export async function getUpsAccessToken() {
   if (!env.UPS_CLIENT_ID || !env.UPS_CLIENT_SECRET) {
     return null;
@@ -26,12 +91,20 @@ export async function getUpsAccessToken() {
 }
 
 export async function requestUpsShopRates(accessToken: string, input: ShipmentInput, accountNumber: string) {
+  const simpleRateCode = getUpsSimpleRateCode(input);
+  const packageServiceOptions = buildUpsPackageServiceOptions(input);
   const body = {
     RateRequest: {
       Request: {
         TransactionReference: {
           CustomerContext: `CALFIE EXPRESS rate request ${accountNumber}`
         }
+      },
+      PickupType: {
+        Code: "01"
+      },
+      CustomerClassification: {
+        Code: "00"
       },
       Shipment: {
         Shipper: {
@@ -62,7 +135,22 @@ export async function requestUpsShopRates(accessToken: string, input: ShipmentIn
             }
           }
         },
+        ShipmentRatingOptions: simpleRateCode
+          ? {
+              UserLevelDiscountIndicator: "Y",
+              TPFCNegotiatedRatesIndicator: "Y"
+            }
+          : undefined,
+        DeliveryTimeInformation: {
+          PackageBillType: "03"
+        },
         Package: {
+          SimpleRate: simpleRateCode
+            ? {
+                Description: `Simple Rate ${simpleRateCode}`,
+                Code: simpleRateCode
+              }
+            : undefined,
           PackagingType: {
             Code: "02"
           },
@@ -79,7 +167,8 @@ export async function requestUpsShopRates(accessToken: string, input: ShipmentIn
               Code: "LBS"
             },
             Weight: String(input.packageWeight)
-          }
+          },
+          PackageServiceOptions: packageServiceOptions
         }
       }
     }
@@ -112,6 +201,8 @@ export async function requestUpsShipment(accessToken: string, args: {
 }) {
   const { orderId, shipment, rate } = args;
   const accountNumber = rate.accountNumber ?? env.UPS_ACCOUNT_NUMBER ?? env.UPS_ACCOUNT_NUMBERS[0];
+  const simpleRateCode = getUpsSimpleRateCode(shipment);
+  const packageServiceOptions = buildUpsPackageServiceOptions(shipment);
 
   if (!accountNumber) {
     throw new Error("No UPS account number is available for shipment purchase.");
@@ -183,6 +274,12 @@ export async function requestUpsShipment(accessToken: string, args: {
         },
         Package: {
           Description: "Package",
+          SimpleRate: simpleRateCode
+            ? {
+                Description: `Simple Rate ${simpleRateCode}`,
+                Code: simpleRateCode
+              }
+            : undefined,
           Packaging: {
             Code: "02"
           },
@@ -199,7 +296,8 @@ export async function requestUpsShipment(accessToken: string, args: {
               Code: "LBS"
             },
             Weight: String(shipment.packageWeight)
-          }
+          },
+          PackageServiceOptions: packageServiceOptions
         }
       },
       LabelSpecification: {

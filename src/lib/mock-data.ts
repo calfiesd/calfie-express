@@ -47,5 +47,6 @@ export const demoShipment: ShipmentInput = {
   declaredValue: 120,
   residential: true,
   signatureRequired: false,
+  simpleRate: true,
   shipDate: new Date().toISOString()
 };

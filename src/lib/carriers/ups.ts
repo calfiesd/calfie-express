@@ -1,5 +1,5 @@
 import { env } from "@/lib/config";
-import type { CarrierRate, PricingProfile, PurchasedLabel, ShipmentInput } from "@/lib/domain-types";
+import type { CarrierRate, PricingProfile, PurchasedLabel, ShipmentInput, UpsDebugAccount, UpsDebugRate } from "@/lib/domain-types";
 import { applyCustomerPricing } from "@/lib/pricing";
 import { demoCustomer } from "@/lib/mock-data";
 import type { CarrierAdapter } from "@/lib/carriers/base";
@@ -9,12 +9,13 @@ export type UpsRateResult = {
   mode: "live" | "fallback";
   rates: CarrierRate[];
   diagnostic?: string;
+  debugAccounts?: UpsDebugAccount[];
 };
 
 const defaultPricingProfile = demoCustomer.pricingProfile;
 
 function getConfiguredUpsAccounts() {
-  return env.UPS_ACCOUNT_NUMBERS;
+  return env.UPS_ACCOUNT_NUMBER ? [env.UPS_ACCOUNT_NUMBER] : [];
 }
 
 function buildDemoRates(input: ShipmentInput, pricingProfile: PricingProfile = defaultPricingProfile): CarrierRate[] {
@@ -65,12 +66,43 @@ function serviceNameFromCode(serviceCode: string) {
   return map[serviceCode] ?? `UPS ${serviceCode}`;
 }
 
+function parseUpsCharge(shipment: any) {
+  const negotiatedTotal = shipment?.NegotiatedRateCharges?.TotalCharge?.MonetaryValue;
+  const publishedTotal = shipment?.TotalCharges?.MonetaryValue;
+  const freightNetCharge = shipment?.FRSShipmentData?.TransportationCharges?.NetCharge?.MonetaryValue;
+  const chargeSource = negotiatedTotal ? "negotiated" : freightNetCharge ? "freight_net" : "published";
+  const monetaryValue = negotiatedTotal ?? freightNetCharge ?? publishedTotal ?? 0;
+
+  return {
+    carrierCost: Number(monetaryValue),
+    chargeSource,
+    totalCharges: publishedTotal ? Number(publishedTotal) : undefined,
+    negotiatedCharges: negotiatedTotal ? Number(negotiatedTotal) : undefined,
+    freightNetCharge: freightNetCharge ? Number(freightNetCharge) : undefined
+  };
+}
+
+function buildDebugRate(shipment: any): UpsDebugRate {
+  const parsedCharge = parseUpsCharge(shipment);
+  const serviceCode = String(shipment?.Service?.Code ?? "ups_service");
+
+  return {
+    serviceCode,
+    serviceName: serviceNameFromCode(serviceCode),
+    totalCharges: parsedCharge.totalCharges,
+    negotiatedCharges: parsedCharge.negotiatedCharges,
+    freightNetCharge: parsedCharge.freightNetCharge,
+    chargeSource: parsedCharge.chargeSource as UpsDebugRate["chargeSource"],
+    selectedCharge: parsedCharge.carrierCost
+  };
+}
+
 function normalizeUpsRates(payload: any, input: ShipmentInput, pricingProfile: PricingProfile, accountNumber: string): CarrierRate[] {
   const ratedShipment = payload?.RateResponse?.RatedShipment;
   const shipments = Array.isArray(ratedShipment) ? ratedShipment : ratedShipment ? [ratedShipment] : [];
 
   return shipments.map((shipment: any) => {
-    const carrierCost = Number(shipment?.TotalCharges?.MonetaryValue ?? 0);
+    const parsedCharge = parseUpsCharge(shipment);
     const serviceCode = String(shipment?.Service?.Code ?? "ups_service");
 
     return {
@@ -78,13 +110,24 @@ function normalizeUpsRates(payload: any, input: ShipmentInput, pricingProfile: P
       serviceCode,
       serviceName: serviceNameFromCode(serviceCode),
       transitDays: Number(shipment?.GuaranteedDelivery?.BusinessDaysInTransit ?? 0),
-      carrierCost,
-      customerPrice: applyCustomerPricing(carrierCost, pricingProfile, input),
+      carrierCost: parsedCharge.carrierCost,
+      customerPrice: applyCustomerPricing(parsedCharge.carrierCost, pricingProfile, input),
       currency: "USD" as const,
       accountNumber,
-      accountLabel: accountNumber
+      accountLabel: `${accountNumber} (${parsedCharge.chargeSource})`
     };
   });
+}
+
+function buildDebugAccount(accountNumber: string, payload: any): UpsDebugAccount {
+  const ratedShipment = payload?.RateResponse?.RatedShipment;
+  const shipments = Array.isArray(ratedShipment) ? ratedShipment : ratedShipment ? [ratedShipment] : [];
+
+  return {
+    accountNumber,
+    status: "success",
+    rates: shipments.map((shipment: any) => buildDebugRate(shipment))
+  };
 }
 
 function chooseLowestRatesByService(rates: CarrierRate[]) {
@@ -92,7 +135,7 @@ function chooseLowestRatesByService(rates: CarrierRate[]) {
 
   for (const rate of rates) {
     const current = bestByService.get(rate.serviceCode);
-    if (!current || rate.customerPrice < current.customerPrice) {
+    if (!current || rate.carrierCost < current.carrierCost) {
       bestByService.set(rate.serviceCode, rate);
     }
   }
@@ -117,6 +160,18 @@ function normalizeUpsShipment(payload: any, fallbackRate: CarrierRate): Purchase
   };
 }
 
+function summarizeAccountRates(account: UpsDebugAccount) {
+  if (account.rates.length === 0) {
+    return `${account.accountNumber}: no rates returned`;
+  }
+
+  const summary = account.rates
+    .map((rate) => `${rate.serviceCode} ${rate.selectedCharge.toFixed(2)}`)
+    .join(", ");
+
+  return `${account.accountNumber}: ${summary}`;
+}
+
 export class UpsAdapter implements CarrierAdapter {
   async getRates(input: ShipmentInput, pricingProfile: PricingProfile = defaultPricingProfile): Promise<CarrierRate[]> {
     const result = await this.getRatesWithDiagnostics(input, pricingProfile);
@@ -129,7 +184,7 @@ export class UpsAdapter implements CarrierAdapter {
       return {
         mode: "fallback",
         rates: buildDemoRates(input, pricingProfile),
-        diagnostic: "Missing UPS credentials or account number in environment configuration."
+        diagnostic: "Missing UPS credentials or single active UPS account in environment configuration."
       };
     }
 
@@ -143,38 +198,27 @@ export class UpsAdapter implements CarrierAdapter {
         };
       }
 
-      const accountResults = await Promise.allSettled(
-        accounts.map(async (accountNumber) => {
-          const payload = await requestUpsShopRates(accessToken, input, accountNumber);
-          return normalizeUpsRates(payload, input, pricingProfile, accountNumber);
-        })
-      );
-
-      const liveRates = accountResults.flatMap((result) => result.status === "fulfilled" ? result.value : []);
-      const failures = accountResults.filter((result) => result.status === "rejected").length;
-      const rates = chooseLowestRatesByService(liveRates);
+      const accountNumber = accounts[0];
+      const payload = await requestUpsShopRates(accessToken, input, accountNumber);
+      const rates = chooseLowestRatesByService(normalizeUpsRates(payload, input, pricingProfile, accountNumber));
+      const debugAccount = buildDebugAccount(accountNumber, payload);
 
       if (rates.length === 0) {
-        const diagnostic = accountResults
-          .filter((result): result is PromiseRejectedResult => result.status === "rejected")
-          .map((result) => result.reason instanceof Error ? result.reason.message : String(result.reason))
-          .join(" | ");
-
         return {
           mode: "fallback",
           rates: buildDemoRates(input, pricingProfile),
-          diagnostic: diagnostic || "UPS responded, but no rated shipments were returned."
+          diagnostic: `${accountNumber}: no rated shipments were returned.`,
+          debugAccounts: [debugAccount]
         };
       }
 
-      const diagnostic = failures > 0
-        ? `Live UPS rating returned lowest prices across ${accounts.length} accounts with ${failures} account failure(s).`
-        : `Live UPS rating returned lowest prices across ${accounts.length} UPS account(s).`;
+      const diagnostic = `UPS ${accountNumber} responses -> ${summarizeAccountRates(debugAccount)}`;
 
       return {
         mode: "live",
         rates,
-        diagnostic
+        diagnostic,
+        debugAccounts: [debugAccount]
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown UPS error";
@@ -191,8 +235,8 @@ export class UpsAdapter implements CarrierAdapter {
       throw new Error("Live UPS label purchase is disabled. Set ALLOW_LIVE_LABEL_PURCHASE=true only when you are ready for real carrier charges.");
     }
 
-    const accounts = getConfiguredUpsAccounts();
-    if (!env.UPS_CLIENT_ID || !env.UPS_CLIENT_SECRET || accounts.length === 0) {
+    const accountNumber = env.UPS_ACCOUNT_NUMBER;
+    if (!env.UPS_CLIENT_ID || !env.UPS_CLIENT_SECRET || !accountNumber) {
       return {
         carrier: "UPS",
         serviceName: args.rate.serviceName,
