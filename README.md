@@ -12,10 +12,9 @@ This workspace now contains two layers:
 - Real customer accounts: enabled
 - Different customers can have different markup percentages and pricing rules
 - Saved payment methods are supported through Stripe
-- Phase 1 carrier: UPS only
-- FedEx: planned for phase 2
+- Primary live carrier: UPS (`0720R3` path)
+- FedEx: live rating scaffold wired, purchase still demo/stub until shipping API is connected
 - UPS OAuth, rating, and shipping: wired
-- Multi-account UPS quoting: lowest configured account per service is selected automatically
 - Stripe checkout + webhooks: wired
 - PostgreSQL persistence: wired
 - Email notifications: supported when Postmark env vars are configured
@@ -32,24 +31,38 @@ This workspace now contains two layers:
 ## Production app highlights
 
 - `src/app/login/page.tsx`: customer registration and login
-- `src/app/dashboard/page.tsx`: customer shipping dashboard with live UPS pricing
+- `src/app/dashboard/page.tsx`: customer shipping dashboard with UPS + FedEx comparison
 - `src/app/orders/page.tsx`: customer order history
 - `src/app/admin/orders/page.tsx`: admin order list
-- `src/app/api/quotes/route.ts`: UPS quote endpoint
+- `src/app/api/quotes/route.ts`: carrier quote endpoint
 - `src/app/api/orders/route.ts`: order draft creation
 - `src/app/api/orders/complete/route.ts`: browser-driven payment completion
 - `src/app/api/webhooks/stripe/route.ts`: Stripe webhook fulfillment
 - `src/lib/orders/fulfillment.ts`: shared post-payment fulfillment logic
 - `src/lib/carriers/ups.ts`: UPS adapter for rating and shipment purchase
+- `src/lib/carriers/fedex.ts`: FedEx adapter for live-rate scaffold + fallback comparison pricing
+- `src/lib/fedex/client.ts`: FedEx OAuth and rate request helper
 - `src/lib/payments/stripe.ts`: Stripe customer, payment intent, and webhook helpers
 - `prisma/schema.prisma`: users, pricing profiles, quotes, orders, and carrier adjustments
 
 ## Deployment prep
 
-- Node.js target: `20.9+`
+- Node.js target: `20.x`
 - Next.js dependency is prepared for the Next 16 deployment path
 - ESLint uses the standard CLI instead of `next lint`
 - Prisma client generation runs in `postinstall`
 - Use Vercel + Neon for the simplest first production deployment
 
-See [docs/deployment-vercel.md](/C:/Users/towei/OneDrive/文档/太阳能/website/docs/deployment-vercel.md) for the exact production checklist.
+## FedEx envs
+
+- `FEDEX_API_KEY`
+- `FEDEX_SECRET_KEY`
+- `FEDEX_ACCOUNT_NUMBER`
+- optional if your account setup requires it:
+  - `FEDEX_CHILD_KEY`
+  - `FEDEX_CHILD_SECRET`
+- `FEDEX_API_BASE_URL`
+  - sandbox: `https://apis-sandbox.fedex.com`
+  - production: `https://apis.fedex.com`
+
+See [docs/deployment-vercel.md](/C:/Users/towei/OneDrive/文档/太阳�?website/docs/deployment-vercel.md) for the exact production checklist.
