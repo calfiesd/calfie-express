@@ -200,7 +200,7 @@ export async function requestUpsShipment(accessToken: string, args: {
   rate: CarrierRate;
 }) {
   const { orderId, shipment, rate } = args;
-  const accountNumber = rate.accountNumber ?? env.UPS_ACCOUNT_NUMBER ?? env.UPS_ACCOUNT_NUMBERS[0];
+  const accountNumber = rate.accountNumber ?? env.UPS_ACCOUNT_NUMBER;
   const simpleRateCode = getUpsSimpleRateCode(shipment);
   const packageServiceOptions = buildUpsPackageServiceOptions(shipment);
 
