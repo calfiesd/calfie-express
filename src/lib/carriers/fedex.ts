@@ -1,4 +1,4 @@
-import type { CarrierRate, PurchasedLabel, PricingProfile, ShipmentInput } from "@/lib/domain-types";
+import type { CarrierRate, FedExQuoteStatus, PurchasedLabel, PricingProfile, ShipmentInput } from "@/lib/domain-types";
 import { applyCustomerPricing } from "@/lib/pricing";
 import { demoCustomer } from "@/lib/mock-data";
 import type { CarrierAdapter } from "@/lib/carriers/base";
@@ -132,21 +132,62 @@ function normalizeFedExRates(payload: FedExRateReply, input: ShipmentInput, pric
 
 export class FedExAdapter implements CarrierAdapter {
   async getRates(input: ShipmentInput, pricingProfile: PricingProfile = defaultPricingProfile): Promise<CarrierRate[]> {
+    const result = await this.getRatesWithDiagnostics(input, pricingProfile);
+    return result.rates;
+  }
+
+  async getRatesWithDiagnostics(input: ShipmentInput, pricingProfile: PricingProfile = defaultPricingProfile): Promise<{ rates: CarrierRate[]; status: FedExQuoteStatus }> {
     if (!env.FEDEX_API_KEY || !env.FEDEX_SECRET_KEY || !env.FEDEX_ACCOUNT_NUMBER) {
-      return demoRates(input, pricingProfile);
+      return {
+        rates: demoRates(input, pricingProfile),
+        status: {
+          mode: "misconfigured",
+          diagnostic: "FedEx fallback demo pricing is active because FEDEX_API_KEY, FEDEX_SECRET_KEY, or FEDEX_ACCOUNT_NUMBER is missing."
+        }
+      };
     }
 
     try {
       const accessToken = await getFedExAccessToken();
       if (!accessToken) {
-        return demoRates(input, pricingProfile);
+        return {
+          rates: demoRates(input, pricingProfile),
+          status: {
+            mode: "fallback",
+            diagnostic: "FedEx OAuth returned no access token, so demo comparison pricing is being used."
+          }
+        };
       }
 
       const payload = await requestFedExRates(accessToken, input) as FedExRateReply;
       const liveRates = normalizeFedExRates(payload, input, pricingProfile);
-      return liveRates.length > 0 ? liveRates : demoRates(input, pricingProfile);
-    } catch {
-      return demoRates(input, pricingProfile);
+      if (liveRates.length > 0) {
+        return {
+          rates: liveRates,
+          status: {
+            mode: "live",
+            diagnostic: `FedEx live rates returned for account ${env.FEDEX_ACCOUNT_NUMBER}.`
+          }
+        };
+      }
+
+      return {
+        rates: demoRates(input, pricingProfile),
+        status: {
+          mode: "fallback",
+          diagnostic: "FedEx rate API returned no usable live services, so demo comparison pricing is being used."
+        }
+      };
+    } catch (error) {
+      return {
+        rates: demoRates(input, pricingProfile),
+        status: {
+          mode: "fallback",
+          diagnostic: error instanceof Error
+            ? `FedEx live rate request failed: ${error.message}`
+            : "FedEx live rate request failed, so demo comparison pricing is being used."
+        }
+      };
     }
   }
 

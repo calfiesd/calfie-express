@@ -187,13 +187,15 @@ export function DashboardClient({
         </div>
         <div className="card">
           <h2>Carrier mode</h2>
-          <p className="muted">Current UPS source: {quote.source === "live" ? "Live UPS" : "Fallback pricing"}</p>
+          <p className="muted">UPS quote mode: {quote.source === "live" ? "Live" : "Fallback"}</p>
+          <p className="muted">FedEx quote mode: {quote.fedexStatus?.mode ?? "unknown"}</p>
           <p className="muted">Quote endpoint: <code>/api/quotes</code></p>
           <p className="muted">Simple Rate requested: {shipment.simpleRate ? "Yes" : "No"}</p>
         </div>
         <div className="card">
           <h2>Carrier diagnostic</h2>
           <p className="muted">{quote.diagnostic}</p>
+          {quote.fedexStatus ? <p className="muted">FedEx detail: {quote.fedexStatus.diagnostic}</p> : null}
         </div>
       </section>
 
@@ -321,4 +323,5 @@ export function DashboardClient({
     </>
   );
 }
+
 

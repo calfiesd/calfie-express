@@ -65,12 +65,18 @@ export type UpsDebugAccount = {
   rates: UpsDebugRate[];
 };
 
+export type FedExQuoteStatus = {
+  mode: "live" | "fallback" | "misconfigured";
+  diagnostic: string;
+};
+
 export type UpsQuoteResponse = {
   shipment: ShipmentInput;
   rates: CarrierRate[];
   source: "live" | "fallback";
   diagnostic?: string;
   debugAccounts?: UpsDebugAccount[];
+  fedexStatus?: FedExQuoteStatus;
   note: string;
 };
 
