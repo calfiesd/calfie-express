@@ -53,6 +53,32 @@ const disabledSecondaryButtonStyle = {
   color: "#8b8173",
   cursor: "not-allowed"
 } as const;
+const statusBannerStyle = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+  gap: "14px",
+  marginBottom: "22px"
+} as const;
+
+const statusPanelStyle = {
+  padding: "18px 20px",
+  borderRadius: "20px",
+  border: "1px solid rgba(29, 36, 48, 0.12)",
+  background: "rgba(255, 250, 242, 0.96)",
+  boxShadow: "0 12px 32px rgba(57, 41, 19, 0.08)"
+} as const;
+
+const livePanelStyle = {
+  ...statusPanelStyle,
+  background: "linear-gradient(135deg, rgba(214, 241, 223, 0.95), rgba(255, 250, 242, 0.96))",
+  border: "1px solid rgba(61, 126, 83, 0.24)"
+} as const;
+
+const cautionPanelStyle = {
+  ...statusPanelStyle,
+  background: "linear-gradient(135deg, rgba(244, 229, 205, 0.95), rgba(255, 250, 242, 0.96))",
+  border: "1px solid rgba(189, 139, 52, 0.24)"
+} as const;
 function money(value: number | undefined) {
   if (typeof value !== "number" || Number.isNaN(value)) {
     return "-";
@@ -250,6 +276,23 @@ export function DashboardClient({
         </div>
       </section>
 
+      <section className="section" style={statusBannerStyle}>
+        <div style={livePanelStyle}>
+          <p className="eyebrow" style={{ marginBottom: "8px" }}>UPS status</p>
+          <h2 style={{ marginBottom: "8px" }}>Live purchase enabled</h2>
+          <p className="muted" style={{ margin: 0 }}>
+            UPS quotes are live on your primary account and the UPS purchase path is available when you are ready to use it.
+          </p>
+        </div>
+        <div style={cautionPanelStyle}>
+          <p className="eyebrow" style={{ marginBottom: "8px" }}>FedEx status</p>
+          <h2 style={{ marginBottom: "8px" }}>Purchase guarded by safety switch</h2>
+          <p className="muted" style={{ margin: 0 }}>
+            FedEx quotes are currently {quote.fedexStatus?.mode ?? "unknown"}. FedEx label purchase follows the same ALLOW_LIVE_LABEL_PURCHASE switch and should stay off until you are ready for real carrier charges.
+          </p>
+        </div>
+      </section>
+
       <section className="section grid-4">
         <div className="card">
           <h2>Auth state</h2>
@@ -399,6 +442,7 @@ export function DashboardClient({
     </>
   );
 }
+
 
 
 
