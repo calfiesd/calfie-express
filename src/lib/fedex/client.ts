@@ -43,6 +43,25 @@ type FedExRateRequest = {
 
 let fedexAccessToken: { value: string; expiresAt: number } | null = null;
 
+function toFedExShipDateStamp(value?: string) {
+  if (!value) {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  const trimmed = value.trim();
+  const match = trimmed.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (match) {
+    return match[1];
+  }
+
+  const parsed = new Date(trimmed);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toISOString().slice(0, 10);
+  }
+
+  return new Date().toISOString().slice(0, 10);
+}
+
 function getFedExAuthPayload() {
   if (!env.FEDEX_API_KEY || !env.FEDEX_SECRET_KEY) {
     return null;
@@ -150,7 +169,7 @@ function buildFedExRateRequest(input: ShipmentInput): FedExRateRequest {
       packagingType: "YOUR_PACKAGING",
       rateRequestType: ["ACCOUNT", "LIST"],
       preferredCurrency: "USD",
-      shipDateStamp: input.shipDate,
+      shipDateStamp: toFedExShipDateStamp(input.shipDate),
       requestedPackageLineItems: [packageLineItem]
     },
     carrierCodes: ["FEDEX_GROUND", "FEDEX_EXPRESS"]
