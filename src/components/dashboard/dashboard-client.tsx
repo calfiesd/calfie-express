@@ -2,9 +2,21 @@
 
 import { useState, useTransition } from "react";
 import { PaymentCheckout } from "@/components/dashboard/payment-checkout";
-import type { CarrierRate, CheckoutDraft, OrderDraft, PurchasedLabel, ShipmentInput, UpsQuoteResponse } from "@/lib/domain-types";
+import type {
+  CarrierRate,
+  CheckoutDraft,
+  OrderDraft,
+  PurchasedLabel,
+  ShipmentInput,
+  UpsDebugAccount,
+  UpsQuoteResponse
+} from "@/lib/domain-types";
 
-function money(value: number) {
+function money(value: number | undefined) {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return "-";
+  }
+
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD"
@@ -74,7 +86,8 @@ export function DashboardClient({
       });
 
       if (!response.ok) {
-        setQuoteError(`Quote request failed with status ${response.status}.`);
+        const text = await response.text();
+        setQuoteError(`Quote request failed with status ${response.status}${text ? `: ${text}` : "."}`);
         return;
       }
 
@@ -86,7 +99,7 @@ export function DashboardClient({
 
   function createOrderDraft() {
     if (!selectedRate) {
-      setOrderMessage("Choose a UPS service first.");
+      setOrderMessage("Choose a carrier service first.");
       return;
     }
 
@@ -146,10 +159,10 @@ export function DashboardClient({
       <section className="section hero">
         <div>
           <p className="eyebrow">Customer portal</p>
-          <h1>CALFIE EXPRESS UPS shipping dashboard</h1>
+          <h1>CALFIE EXPRESS shipping dashboard</h1>
           <p className="copy">
-            This flow now submits the quote form to the live UPS quote endpoint, renders the returned services,
-            creates an order draft, prepares a Stripe checkout draft, and can confirm payment before a real UPS label purchase attempt.
+            This flow now uses your primary UPS account for live UPS quotes and label purchase, while also showing FedEx comparison
+            pricing so customers can choose between carriers from one screen.
           </p>
         </div>
         <div className="card">
@@ -173,12 +186,13 @@ export function DashboardClient({
           <p className="muted">Setup intent endpoint: <code>/api/payments/setup-intent</code></p>
         </div>
         <div className="card">
-          <h2>UPS mode</h2>
-          <p className="muted">Current source: {quote.source === "live" ? "Live UPS" : "Fallback pricing"}</p>
+          <h2>Carrier mode</h2>
+          <p className="muted">Current UPS source: {quote.source === "live" ? "Live UPS" : "Fallback pricing"}</p>
           <p className="muted">Quote endpoint: <code>/api/quotes</code></p>
+          <p className="muted">Simple Rate requested: {shipment.simpleRate ? "Yes" : "No"}</p>
         </div>
         <div className="card">
-          <h2>UPS diagnostic</h2>
+          <h2>Carrier diagnostic</h2>
           <p className="muted">{quote.diagnostic}</p>
         </div>
       </section>
@@ -205,9 +219,10 @@ export function DashboardClient({
             <label className="field"><span>Weight</span><input type="number" value={shipment.packageWeight} onChange={(e) => updateField("packageWeight", Number(e.target.value))} /></label>
             <label className="field"><span>Declared value</span><input type="number" value={shipment.declaredValue} onChange={(e) => updateField("declaredValue", Number(e.target.value))} /></label>
             <label className="field"><span>Residential</span><select value={shipment.residential ? "yes" : "no"} onChange={(e) => updateField("residential", e.target.value === "yes")}><option value="yes">Yes</option><option value="no">No</option></select></label>
+            <label className="field"><span>Simple Rate</span><select value={shipment.simpleRate ? "yes" : "no"} onChange={(e) => updateField("simpleRate", e.target.value === "yes")}><option value="yes">Yes</option><option value="no">No</option></select></label>
           </div>
           <div className="actions">
-            <button className="button primary" type="button" onClick={submitQuote} disabled={isQuotePending}>{isQuotePending ? "Loading quotes..." : "Get live UPS quotes"}</button>
+            <button className="button primary" type="button" onClick={submitQuote} disabled={isQuotePending}>{isQuotePending ? "Loading quotes..." : "Get carrier quotes"}</button>
           </div>
           {quoteError ? <p className="muted">{quoteError}</p> : null}
         </div>
@@ -216,16 +231,19 @@ export function DashboardClient({
           <h2>Selected service</h2>
           {selectedRate ? (
             <>
+              <p className="muted">Carrier: {selectedRate.carrier}</p>
               <p className="muted">{selectedRate.serviceName}</p>
+              <p className="muted">Billing account: {selectedRate.accountLabel ?? selectedRate.accountNumber ?? "Unknown"}</p>
               <p className="muted">Customer charge: {money(selectedRate.customerPrice)}</p>
               <p className="muted">Carrier cost: {money(selectedRate.carrierCost)}</p>
               <p className="muted">Margin: {money(selectedRate.customerPrice - selectedRate.carrierCost)}</p>
+              {selectedRate.carrier === "UPS" ? <p className="muted">Simple Rate: {shipment.simpleRate ? "Requested" : "Off"}</p> : null}
               <div className="actions">
                 <button className="button primary" type="button" onClick={createOrderDraft} disabled={isOrderPending}>{isOrderPending ? "Creating draft..." : "Create order draft"}</button>
                 <button className="button" type="button" onClick={createCheckoutDraft} disabled={isCheckoutPending || !orderDraft}>{isCheckoutPending ? "Preparing checkout..." : "Prepare checkout"}</button>
               </div>
             </>
-          ) : <p className="muted">Get a quote to choose a UPS service.</p>}
+          ) : <p className="muted">Get a quote to choose a carrier service.</p>}
           {orderDraft ? <div><p className="muted">Draft order: {orderDraft.id}</p><p className="muted">Status: {orderDraft.status}</p></div> : null}
           {orderMessage ? <p className="muted">{orderMessage}</p> : null}
           {checkoutDraft ? <div><p className="muted">Payment intent: {checkoutDraft.paymentIntentId}</p><p className="muted">Checkout mode: {checkoutDraft.paymentMode}</p><p className="muted">Amount: {money(checkoutDraft.amount)}</p><p className="muted">Status: {checkoutDraft.status}</p></div> : null}
@@ -233,10 +251,56 @@ export function DashboardClient({
         </div>
       </section>
 
+      {quote.debugAccounts?.length ? (
+        <section className="section card">
+          <h2>UPS raw debug</h2>
+          <div className="table" style={{ overflowX: "auto" }}>
+            <table>
+              <thead>
+                <tr>
+                  <th>Account</th>
+                  <th>Status</th>
+                  <th>Service</th>
+                  <th>Selected</th>
+                  <th>Published</th>
+                  <th>Negotiated</th>
+                  <th>Freight Net</th>
+                </tr>
+              </thead>
+              <tbody>
+                {quote.debugAccounts.flatMap((account: UpsDebugAccount, accountIndex) => {
+                  if (account.status === "failure") {
+                    return [
+                      <tr key={`${account.accountNumber}-${accountIndex}-failure`}>
+                        <td>{account.accountNumber}</td>
+                        <td>failure</td>
+                        <td colSpan={5}>{account.message ?? "Unknown UPS error"}</td>
+                      </tr>
+                    ];
+                  }
+
+                  return account.rates.map((rate) => (
+                    <tr key={`${account.accountNumber}-${rate.serviceCode}`}>
+                      <td>{account.accountNumber}</td>
+                      <td>{rate.chargeSource}</td>
+                      <td>{rate.serviceName}</td>
+                      <td>{money(rate.selectedCharge)}</td>
+                      <td>{money(rate.totalCharges)}</td>
+                      <td>{money(rate.negotiatedCharges)}</td>
+                      <td>{money(rate.freightNetCharge)}</td>
+                    </tr>
+                  ));
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
+
       {checkoutDraft && orderDraft ? (
         <section className="section card">
           <h2>Checkout</h2>
-          <p className="muted">Confirm payment for the selected UPS service. Successful payment will call the paid-order endpoint.</p>
+          <p className="muted">Confirm payment for the selected carrier service. Successful payment will call the paid-order endpoint.</p>
           <PaymentCheckout publishableKey={stripePublishableKey} checkoutDraft={checkoutDraft} orderDraft={orderDraft} onCompleted={setPurchaseResult} />
           {purchaseResult ? <div><p className="muted">{purchaseResult.note}</p>{purchaseResult.purchased ? <p className="muted">Tracking: {purchaseResult.purchased.trackingNumber}</p> : null}{purchaseResult.purchased ? <p className="muted">Label URL ready: {purchaseResult.purchased.labelUrl ? "Yes" : "No"}</p> : null}{purchaseResult.diagnostic ? <p className="muted">Diagnostic: {purchaseResult.diagnostic}</p> : null}</div> : null}
         </section>
@@ -244,11 +308,11 @@ export function DashboardClient({
 
       <section className="section table">
         <table>
-          <thead><tr><th>Pick</th><th>Service</th><th>Transit</th><th>Carrier cost</th><th>Customer price</th><th>Margin</th></tr></thead>
+          <thead><tr><th>Pick</th><th>Carrier</th><th>Service</th><th>Billing account</th><th>Transit</th><th>Carrier cost</th><th>Customer price</th><th>Margin</th></tr></thead>
           <tbody>
             {quote.rates.map((rate) => {
-              const selected = selectedRate?.serviceCode === rate.serviceCode;
-              return <tr key={`${rate.carrier}-${rate.serviceCode}`}><td><button className="button" type="button" onClick={() => setSelectedRate(rate)}>{selected ? "Selected" : "Choose"}</button></td><td>{rate.serviceName}</td><td>{rate.transitDays} day(s)</td><td>{money(rate.carrierCost)}</td><td>{money(rate.customerPrice)}</td><td>{money(rate.customerPrice - rate.carrierCost)}</td></tr>;
+              const selected = selectedRate?.carrier === rate.carrier && selectedRate?.serviceCode === rate.serviceCode;
+              return <tr key={`${rate.carrier}-${rate.serviceCode}`}><td><button className="button" type="button" onClick={() => setSelectedRate(rate)}>{selected ? "Selected" : "Choose"}</button></td><td>{rate.carrier}</td><td>{rate.serviceName}</td><td>{rate.accountLabel ?? rate.accountNumber ?? "-"}</td><td>{rate.transitDays} day(s)</td><td>{money(rate.carrierCost)}</td><td>{money(rate.customerPrice)}</td><td>{money(rate.customerPrice - rate.carrierCost)}</td></tr>;
             })}
           </tbody>
         </table>

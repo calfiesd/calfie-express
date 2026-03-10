@@ -5,6 +5,7 @@ import { SiteNav } from "@/components/site-nav";
 import { DashboardClient } from "@/components/dashboard/dashboard-client";
 import { demoShipment } from "@/lib/mock-data";
 import { UpsAdapter } from "@/lib/carriers/ups";
+import { FedExAdapter } from "@/lib/carriers/fedex";
 import { getStripeStatus } from "@/lib/payments/stripe";
 import { env } from "@/lib/config";
 import { requireUser } from "@/lib/auth/session";
@@ -37,7 +38,12 @@ export default async function DashboardPage() {
   };
 
   const ups = await new UpsAdapter().getRatesWithDiagnostics(initialShipment, pricingSummary);
+  const fedexRates = await new FedExAdapter().getRates(initialShipment, pricingSummary);
   const stripe = getStripeStatus();
+  const initialRates = [...ups.rates, ...fedexRates].sort((left, right) => left.customerPrice - right.customerPrice);
+  const fedexDiagnostic = fedexRates.length > 0
+    ? "FedEx comparison is enabled with placeholder account-rate logic until live FedEx API credentials are connected."
+    : "FedEx comparison returned no rates.";
 
   return (
     <>
@@ -46,10 +52,11 @@ export default async function DashboardPage() {
         initialShipment={initialShipment}
         initialQuote={{
           shipment: initialShipment,
-          rates: ups.rates,
+          rates: initialRates,
           source: ups.mode,
-          diagnostic: ups.diagnostic,
-          note: "Initial dashboard quote load"
+          diagnostic: [ups.diagnostic, fedexDiagnostic].filter(Boolean).join(" || "),
+          debugAccounts: ups.debugAccounts,
+          note: "Initial dashboard comparison load"
         }}
         stripeConfigured={stripe.configured}
         stripePublishableKey={env.STRIPE_PUBLISHABLE_KEY ?? ""}
