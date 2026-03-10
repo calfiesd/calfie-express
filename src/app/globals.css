@@ -120,12 +120,28 @@ body {
   border: 1px solid var(--line);
   text-decoration: none;
   background: white;
+  color: var(--ink);
+  cursor: pointer;
 }
 
 .button.primary {
   background: var(--accent);
   border-color: var(--accent);
   color: white;
+}
+
+.button:disabled {
+  opacity: 1;
+  cursor: not-allowed;
+  background: #efe6d8;
+  border-color: rgba(29, 36, 48, 0.12);
+  color: #8b8173;
+}
+
+.button.primary:disabled {
+  background: #d7c6b4;
+  border-color: #d7c6b4;
+  color: #fff7ef;
 }
 
 .grid-2,
@@ -230,3 +246,4 @@ body {
     gap: 12px;
   }
 }
+
