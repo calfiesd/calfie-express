@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useState } from "react";
+import { CSSProperties, useState } from "react";
 
 type CustomerRow = {
   id: string;
@@ -34,6 +34,37 @@ function asInput(value: number | undefined) {
   return typeof value === "number" && Number.isFinite(value) ? String(value) : "0";
 }
 
+const adminButtonBaseStyle: CSSProperties = {
+  appearance: "none",
+  borderRadius: "999px",
+  padding: "0.85rem 1.35rem",
+  fontSize: "1rem",
+  fontWeight: 700,
+  border: "1px solid transparent",
+  cursor: "pointer",
+  transition: "all 160ms ease",
+  textDecoration: "none",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: "48px"
+};
+
+const adminPrimaryButtonStyle: CSSProperties = {
+  ...adminButtonBaseStyle,
+  background: "#c85c2b",
+  color: "#fffdf7",
+  borderColor: "#c85c2b"
+};
+
+const adminDisabledPrimaryButtonStyle: CSSProperties = {
+  ...adminButtonBaseStyle,
+  background: "#e8ddca",
+  color: "#fffaf0",
+  borderColor: "#e8ddca",
+  cursor: "not-allowed"
+};
+
 export function CustomerManagement({ customers }: Props) {
   const [rows, setRows] = useState(customers);
   const [selectedId, setSelectedId] = useState(customers[0]?.id ?? "");
@@ -43,30 +74,37 @@ export function CustomerManagement({ customers }: Props) {
   const selected = rows.find((row) => row.id === selectedId) ?? rows[0] ?? null;
 
   function updateSelected(field: string, value: string | boolean) {
-    setRows((current) => current.map((row) => {
-      if (row.id !== selectedId) {
-        return row;
-      }
+    setRows((current) =>
+      current.map((row) => {
+        if (row.id !== selectedId) {
+          return row;
+        }
 
-      if (field === "name" || field === "companyName") {
+        if (field === "name" || field === "companyName") {
+          return {
+            ...row,
+            [field]: value
+          };
+        }
+
+        const pricingProfile = row.pricingProfile ?? {
+          markupPercent: 0,
+          flatFee: 0,
+          minimumProfit: 0,
+          residentialSurcharge: 0,
+          signatureSurcharge: 0,
+          enabled: true
+        };
+
         return {
           ...row,
-          [field]: value
+          pricingProfile: {
+            ...pricingProfile,
+            [field]: field === "enabled" ? Boolean(value) : Number(value)
+          }
         };
-      }
-
-      if (!row.pricingProfile) {
-        return row;
-      }
-
-      return {
-        ...row,
-        pricingProfile: {
-          ...row.pricingProfile,
-          [field]: field === "enabled" ? Boolean(value) : Number(value)
-        }
-      };
-    }));
+      })
+    );
   }
 
   async function saveSelected() {
@@ -102,7 +140,27 @@ export function CustomerManagement({ customers }: Props) {
       return;
     }
 
-    setRows((current) => current.map((row) => row.id === selected.id ? payload.customer : row));
+    setRows((current) =>
+      current.map((row) => {
+        if (row.id !== selected.id) {
+          return row;
+        }
+
+        return {
+          ...row,
+          name: payload.customer.name ?? row.name,
+          companyName: payload.customer.companyName ?? row.companyName,
+          pricingProfile: {
+            markupPercent: Number(payload.customer.pricingProfile?.markupPercent ?? row.pricingProfile?.markupPercent ?? 0),
+            flatFee: Number(payload.customer.pricingProfile?.flatFee ?? row.pricingProfile?.flatFee ?? 0),
+            minimumProfit: Number(payload.customer.pricingProfile?.minimumProfit ?? row.pricingProfile?.minimumProfit ?? 0),
+            residentialSurcharge: Number(payload.customer.pricingProfile?.residentialSurcharge ?? row.pricingProfile?.residentialSurcharge ?? 0),
+            signatureSurcharge: Number(payload.customer.pricingProfile?.signatureSurcharge ?? row.pricingProfile?.signatureSurcharge ?? 0),
+            enabled: Boolean(payload.customer.pricingProfile?.enabled ?? row.pricingProfile?.enabled ?? true)
+          }
+        };
+      })
+    );
     setMessage(payload.message ?? "Customer updated.");
     setSaving(false);
   }
@@ -187,7 +245,13 @@ export function CustomerManagement({ customers }: Props) {
             </div>
 
             <div className="actions">
-              <button className="button primary" type="button" onClick={saveSelected} disabled={saving}>
+              <button
+                className="button primary"
+                style={saving ? adminDisabledPrimaryButtonStyle : adminPrimaryButtonStyle}
+                type="button"
+                onClick={saveSelected}
+                disabled={saving}
+              >
                 {saving ? "Saving..." : "Save customer profile"}
               </button>
             </div>
