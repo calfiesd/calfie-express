@@ -5,7 +5,7 @@ type FedExRateRequest = {
   accountNumber: { value: string };
   rateRequestControlParameters: {
     returnTransitTimes: boolean;
-    servicesNeededOnRateFailure: boolean;
+    servicesNeededOnRateFailure?: boolean;
     variableOptions?: string[];
   };
   requestedShipment: {
@@ -117,7 +117,16 @@ export async function getFedExAccessToken() {
   return json.access_token;
 }
 
-function buildFedExRateRequest(input: ShipmentInput): FedExRateRequest {
+function buildFedExRateRequest(
+  input: ShipmentInput,
+  options: {
+    includeDeclaredValue: boolean;
+    pickupType: string;
+    rateRequestType: string[];
+    includeCarrierCodes: boolean;
+    servicesNeededOnRateFailure?: boolean;
+  }
+): FedExRateRequest {
   const packageLineItem: FedExRateRequest["requestedShipment"]["requestedPackageLineItems"][number] = {
     weight: {
       units: "LB",
@@ -131,7 +140,7 @@ function buildFedExRateRequest(input: ShipmentInput): FedExRateRequest {
     }
   };
 
-  if (input.declaredValue > 0) {
+  if (options.includeDeclaredValue && input.declaredValue > 0) {
     packageLineItem.declaredValue = {
       amount: input.declaredValue,
       currency: "USD"
@@ -144,7 +153,7 @@ function buildFedExRateRequest(input: ShipmentInput): FedExRateRequest {
     },
     rateRequestControlParameters: {
       returnTransitTimes: true,
-      servicesNeededOnRateFailure: true
+      ...(options.servicesNeededOnRateFailure === undefined ? {} : { servicesNeededOnRateFailure: options.servicesNeededOnRateFailure })
     },
     requestedShipment: {
       shipper: {
@@ -165,22 +174,18 @@ function buildFedExRateRequest(input: ShipmentInput): FedExRateRequest {
           residential: input.residential
         }
       },
-      pickupType: "USE_SCHEDULED_PICKUP",
+      pickupType: options.pickupType,
       packagingType: "YOUR_PACKAGING",
-      rateRequestType: ["ACCOUNT", "LIST"],
+      rateRequestType: options.rateRequestType,
       preferredCurrency: "USD",
       shipDateStamp: toFedExShipDateStamp(input.shipDate),
       requestedPackageLineItems: [packageLineItem]
     },
-    carrierCodes: ["FEDEX_GROUND", "FEDEX_EXPRESS"]
+    ...(options.includeCarrierCodes ? { carrierCodes: ["FEDEX_GROUND", "FEDEX_EXPRESS"] } : {})
   };
 }
 
-export async function requestFedExRates(accessToken: string, input: ShipmentInput) {
-  if (!env.FEDEX_ACCOUNT_NUMBER) {
-    throw new Error("FedEx account number is missing.");
-  }
-
+async function performFedExRateRequest(accessToken: string, request: FedExRateRequest) {
   const response = await fetch(`${env.FEDEX_API_BASE_URL}/rate/v1/rates/quotes`, {
     method: "POST",
     headers: {
@@ -188,14 +193,57 @@ export async function requestFedExRates(accessToken: string, input: ShipmentInpu
       "Content-Type": "application/json",
       "x-customer-transaction-id": `calfie-fedex-${Date.now()}`
     },
-    body: JSON.stringify(buildFedExRateRequest(input)),
+    body: JSON.stringify(request),
     cache: "no-store"
   });
 
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`FedEx rating failed with status ${response.status}: ${text}`);
+  const text = await response.text();
+  return { ok: response.ok, status: response.status, text };
+}
+
+export async function requestFedExRates(accessToken: string, input: ShipmentInput) {
+  if (!env.FEDEX_ACCOUNT_NUMBER) {
+    throw new Error("FedEx account number is missing.");
   }
 
-  return response.json();
+  const attempts = [
+    {
+      label: "full",
+      request: buildFedExRateRequest(input, {
+        includeDeclaredValue: true,
+        pickupType: "USE_SCHEDULED_PICKUP",
+        rateRequestType: ["ACCOUNT", "LIST"],
+        includeCarrierCodes: true,
+        servicesNeededOnRateFailure: true
+      })
+    },
+    {
+      label: "minimal",
+      request: buildFedExRateRequest(input, {
+        includeDeclaredValue: false,
+        pickupType: "DROPOFF_AT_FEDEX_LOCATION",
+        rateRequestType: ["ACCOUNT"],
+        includeCarrierCodes: false,
+        servicesNeededOnRateFailure: false
+      })
+    }
+  ];
+
+  const failures: string[] = [];
+
+  for (const attempt of attempts) {
+    const result = await performFedExRateRequest(accessToken, attempt.request);
+
+    if (result.ok) {
+      return JSON.parse(result.text);
+    }
+
+    if (result.status === 401 || result.status === 403) {
+      throw new Error(`FedEx rating failed with status ${result.status}: ${result.text}`);
+    }
+
+    failures.push(`${attempt.label} attempt -> status ${result.status}: ${result.text}`);
+  }
+
+  throw new Error(`FedEx rating failed after retries: ${failures.join(" || ")}`);
 }
