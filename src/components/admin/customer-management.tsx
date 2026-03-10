@@ -113,8 +113,11 @@ export function CustomerManagement({ customers }: Props) {
   const [selectedId, setSelectedId] = useState(customers[0]?.id ?? "");
   const [saving, setSaving] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [resettingPassword, setResettingPassword] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [createMessage, setCreateMessage] = useState<string | null>(null);
+  const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
+  const [passwordDraft, setPasswordDraft] = useState("");
   const [createForm, setCreateForm] = useState<CreateCustomerForm>({
     name: "",
     companyName: "",
@@ -255,6 +258,8 @@ export function CustomerManagement({ customers }: Props) {
     const normalized = normalizeCustomer(payload.customer);
     setRows((current) => [normalized, ...current]);
     setSelectedId(normalized.id);
+    setPasswordDraft("");
+    setPasswordMessage(null);
     setCreateForm({
       name: "",
       companyName: "",
@@ -269,6 +274,48 @@ export function CustomerManagement({ customers }: Props) {
     });
     setCreateMessage(payload.message ?? "Customer created.");
     setCreating(false);
+  }
+
+  async function resetCustomerPassword() {
+    if (!selected) {
+      return;
+    }
+
+    setPasswordMessage(null);
+
+    if (!passwordDraft.trim()) {
+      setPasswordMessage("Please enter a new temporary password.");
+      return;
+    }
+
+    if (passwordDraft.trim().length < 8) {
+      setPasswordMessage("Password must be at least 8 characters.");
+      return;
+    }
+
+    setResettingPassword(true);
+
+    const response = await fetch(`/api/admin/customers/${selected.id}/password`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        password: passwordDraft
+      })
+    });
+
+    const payload = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      setPasswordMessage(payload?.message ?? `Password reset failed with status ${response.status}.`);
+      setResettingPassword(false);
+      return;
+    }
+
+    setPasswordDraft("");
+    setPasswordMessage(payload?.message ?? `Reset password for ${selected.email}.`);
+    setResettingPassword(false);
   }
 
   return (
@@ -430,6 +477,30 @@ export function CustomerManagement({ customers }: Props) {
               </div>
 
               {message ? <p className="muted">{message}</p> : null}
+
+              <div className="card" style={{ marginTop: "16px", background: "rgba(255, 250, 240, 0.55)" }}>
+                <p className="eyebrow">Reset password</p>
+                <h3 style={{ marginTop: 0 }}>Set a new temporary password</h3>
+                <p className="muted">Use this when a customer forgets their password or you want to rotate access manually.</p>
+                <div className="form-grid">
+                  <label className="field">
+                    <span>New temporary password</span>
+                    <input type="password" value={passwordDraft} onChange={(event) => setPasswordDraft(event.target.value)} />
+                  </label>
+                </div>
+                <div className="actions">
+                  <button
+                    className="button primary"
+                    style={resettingPassword ? adminDisabledPrimaryButtonStyle : adminPrimaryButtonStyle}
+                    type="button"
+                    onClick={resetCustomerPassword}
+                    disabled={resettingPassword}
+                  >
+                    {resettingPassword ? "Resetting..." : "Reset customer password"}
+                  </button>
+                </div>
+                {passwordMessage ? <p className="muted">{passwordMessage}</p> : null}
+              </div>
 
               <div className="table" style={{ marginTop: "16px" }}>
                 <table>
