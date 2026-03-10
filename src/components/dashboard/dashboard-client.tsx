@@ -240,7 +240,7 @@ export function DashboardClient({
               <p className="muted">Carrier cost: {money(selectedRate.carrierCost)}</p>
               <p className="muted">Margin: {money(selectedRate.customerPrice - selectedRate.carrierCost)}</p>
               {selectedRate.carrier === "UPS" ? <p className="muted">Simple Rate: {shipment.simpleRate ? "Requested" : "Off"}</p> : null}
-              {selectedRate.carrier === "FEDEX" ? <p className="muted">FedEx labels remain in demo purchase mode until live FedEx shipping credentials are connected.</p> : null}
+              {selectedRate.carrier === "FEDEX" ? <p className="muted">FedEx labels use the same live-purchase safety switch as UPS. Keep ALLOW_LIVE_LABEL_PURCHASE=false until you are ready for real carrier charges.</p> : null}
               <div className="actions">
                 <button className="button primary" type="button" onClick={createOrderDraft} disabled={isOrderPending}>{isOrderPending ? "Creating draft..." : "Create order draft"}</button>
                 <button className="button" type="button" onClick={createCheckoutDraft} disabled={isCheckoutPending || !orderDraft}>{isCheckoutPending ? "Preparing checkout..." : "Prepare checkout"}</button>
@@ -323,5 +323,6 @@ export function DashboardClient({
     </>
   );
 }
+
 
 

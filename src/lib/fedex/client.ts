@@ -1,5 +1,5 @@
 import { env } from "@/lib/config";
-import type { ShipmentInput } from "@/lib/domain-types";
+import type { CarrierRate, ShipmentInput } from "@/lib/domain-types";
 
 type FedExRateRequest = {
   accountNumber: { value: string };
@@ -246,4 +246,131 @@ export async function requestFedExRates(accessToken: string, input: ShipmentInpu
   }
 
   throw new Error(`FedEx rating failed after retries: ${failures.join(" || ")}`);
+}
+
+function buildFedExShipmentRequest(args: {
+  orderId: string;
+  shipment: ShipmentInput;
+  rate: CarrierRate;
+}) {
+  const { orderId, shipment, rate } = args;
+
+  const packageLineItem: Record<string, unknown> = {
+    weight: {
+      units: "LB",
+      value: shipment.packageWeight
+    },
+    dimensions: {
+      length: shipment.packageLength,
+      width: shipment.packageWidth,
+      height: shipment.packageHeight,
+      units: "IN"
+    }
+  };
+
+  if (shipment.declaredValue > 0) {
+    packageLineItem.declaredValue = {
+      amount: shipment.declaredValue,
+      currency: "USD"
+    };
+  }
+
+  return {
+    labelResponseOptions: "LABEL",
+    accountNumber: {
+      value: env.FEDEX_ACCOUNT_NUMBER ?? ""
+    },
+    requestedShipment: {
+      shipDatestamp: toFedExShipDateStamp(shipment.shipDate),
+      pickupType: "DROPOFF_AT_FEDEX_LOCATION",
+      serviceType: rate.serviceCode,
+      packagingType: "YOUR_PACKAGING",
+      shipper: {
+        contact: {
+          personName: shipment.shipFrom.name,
+          companyName: shipment.shipFrom.company ?? shipment.shipFrom.name,
+          phoneNumber: shipment.shipFrom.phone
+        },
+        address: {
+          streetLines: [shipment.shipFrom.line1],
+          city: shipment.shipFrom.city,
+          stateOrProvinceCode: shipment.shipFrom.state,
+          postalCode: shipment.shipFrom.postalCode,
+          countryCode: shipment.shipFrom.countryCode,
+          residential: false
+        }
+      },
+      recipients: [{
+        contact: {
+          personName: shipment.shipTo.name,
+          companyName: shipment.shipTo.company ?? shipment.shipTo.name,
+          phoneNumber: shipment.shipTo.phone
+        },
+        address: {
+          streetLines: [shipment.shipTo.line1],
+          city: shipment.shipTo.city,
+          stateOrProvinceCode: shipment.shipTo.state,
+          postalCode: shipment.shipTo.postalCode,
+          countryCode: shipment.shipTo.countryCode,
+          residential: shipment.residential
+        }
+      }],
+      shippingChargesPayment: {
+        paymentType: "SENDER",
+        payor: {
+          responsibleParty: {
+            accountNumber: {
+              value: env.FEDEX_ACCOUNT_NUMBER ?? ""
+            }
+          }
+        }
+      },
+      labelSpecification: {
+        imageType: "PDF",
+        labelStockType: "PAPER_85X11_TOP_HALF_LABEL"
+      },
+      requestedPackageLineItems: [
+        {
+          sequenceNumber: 1,
+          groupPackageCount: 1,
+          ...packageLineItem
+        }
+      ],
+      totalPackageCount: 1,
+      customerReferences: [
+        {
+          customerReferenceType: "CUSTOMER_REFERENCE",
+          value: orderId
+        }
+      ]
+    }
+  };
+}
+
+export async function requestFedExShipment(accessToken: string, args: {
+  orderId: string;
+  shipment: ShipmentInput;
+  rate: CarrierRate;
+}) {
+  if (!env.FEDEX_ACCOUNT_NUMBER) {
+    throw new Error("FedEx account number is missing.");
+  }
+
+  const response = await fetch(`${env.FEDEX_API_BASE_URL}/ship/v1/shipments`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+      "x-customer-transaction-id": `calfie-fedex-ship-${Date.now()}`
+    },
+    body: JSON.stringify(buildFedExShipmentRequest(args)),
+    cache: "no-store"
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`FedEx shipment purchase failed with status ${response.status}: ${text}`);
+  }
+
+  return response.json();
 }

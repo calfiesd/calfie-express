@@ -3,7 +3,7 @@ import { applyCustomerPricing } from "@/lib/pricing";
 import { demoCustomer } from "@/lib/mock-data";
 import type { CarrierAdapter } from "@/lib/carriers/base";
 import { env } from "@/lib/config";
-import { getFedExAccessToken, requestFedExRates } from "@/lib/fedex/client";
+import { getFedExAccessToken, requestFedExRates, requestFedExShipment } from "@/lib/fedex/client";
 
 const defaultPricingProfile = demoCustomer.pricingProfile;
 
@@ -28,6 +28,27 @@ type FedExRateReply = {
   };
 };
 
+type FedExShipmentReply = {
+  output?: {
+    transactionShipments?: Array<{
+      masterTrackingNumber?: string;
+      pieceResponses?: Array<{
+        trackingNumber?: string;
+        packageDocuments?: Array<{
+          encodedLabel?: string;
+          url?: string;
+          contentType?: string;
+        }>;
+      }>;
+      shipmentDocuments?: Array<{
+        encodedLabel?: string;
+        url?: string;
+        contentType?: string;
+      }>;
+    }>;
+  };
+};
+
 function demoRates(input: ShipmentInput, pricingProfile: PricingProfile = defaultPricingProfile): CarrierRate[] {
   const zoneDistance = Math.abs(Number(input.shipFrom.postalCode.slice(0, 3)) - Number(input.shipTo.postalCode.slice(0, 3)));
   const dimensionalWeight = (input.packageLength * input.packageWidth * input.packageHeight) / 139;
@@ -42,7 +63,7 @@ function demoRates(input: ShipmentInput, pricingProfile: PricingProfile = defaul
   return [
     {
       carrier: "FEDEX",
-      serviceCode: "fedex_ground",
+      serviceCode: "FEDEX_GROUND",
       serviceName: "FedEx Ground",
       transitDays: 4,
       carrierCost: groundCost,
@@ -53,7 +74,7 @@ function demoRates(input: ShipmentInput, pricingProfile: PricingProfile = defaul
     },
     {
       carrier: "FEDEX",
-      serviceCode: "fedex_2day",
+      serviceCode: "FEDEX_2_DAY",
       serviceName: "FedEx 2Day",
       transitDays: 2,
       carrierCost: twoDayCost,
@@ -64,7 +85,7 @@ function demoRates(input: ShipmentInput, pricingProfile: PricingProfile = defaul
     },
     {
       carrier: "FEDEX",
-      serviceCode: "fedex_priority_overnight",
+      serviceCode: "PRIORITY_OVERNIGHT",
       serviceName: "FedEx Priority Overnight",
       transitDays: 1,
       carrierCost: overnightCost,
@@ -130,6 +151,24 @@ function normalizeFedExRates(payload: FedExRateReply, input: ShipmentInput, pric
   }).sort((left, right) => left.customerPrice - right.customerPrice);
 }
 
+function normalizeFedExShipment(payload: FedExShipmentReply, fallbackRate: CarrierRate): PurchasedLabel {
+  const shipment = payload.output?.transactionShipments?.[0];
+  const piece = shipment?.pieceResponses?.[0];
+  const document = piece?.packageDocuments?.[0] ?? shipment?.shipmentDocuments?.[0];
+  const trackingNumber = piece?.trackingNumber ?? shipment?.masterTrackingNumber ?? `FDX-${Date.now()}`;
+  const labelUrl = document?.encodedLabel
+    ? `data:application/pdf;base64,${document.encodedLabel}`
+    : document?.url ?? "";
+
+  return {
+    carrier: "FEDEX",
+    serviceName: fallbackRate.serviceName,
+    trackingNumber,
+    labelUrl,
+    carrierCharge: fallbackRate.carrierCost
+  };
+}
+
 export class FedExAdapter implements CarrierAdapter {
   async getRates(input: ShipmentInput, pricingProfile: PricingProfile = defaultPricingProfile): Promise<CarrierRate[]> {
     const result = await this.getRatesWithDiagnostics(input, pricingProfile);
@@ -192,13 +231,27 @@ export class FedExAdapter implements CarrierAdapter {
   }
 
   async buyLabel(args: { orderId: string; shipment: ShipmentInput; rate: CarrierRate }): Promise<PurchasedLabel> {
-    return {
-      carrier: "FEDEX",
-      serviceName: args.rate.serviceName,
-      trackingNumber: `FDX-DEMO-${args.orderId.slice(-6).toUpperCase()}`,
-      labelUrl: "/labels/demo-fedex-label.pdf",
-      carrierCharge: args.rate.carrierCost
-    };
+    if (!env.ALLOW_LIVE_LABEL_PURCHASE) {
+      throw new Error("Live FedEx label purchase is disabled. Set ALLOW_LIVE_LABEL_PURCHASE=true only when you are ready for real carrier charges.");
+    }
+
+    if (!env.FEDEX_API_KEY || !env.FEDEX_SECRET_KEY || !env.FEDEX_ACCOUNT_NUMBER) {
+      return {
+        carrier: "FEDEX",
+        serviceName: args.rate.serviceName,
+        trackingNumber: `FDX-DEMO-${args.orderId.slice(-6).toUpperCase()}`,
+        labelUrl: "/labels/demo-fedex-label.pdf",
+        carrierCharge: args.rate.carrierCost
+      };
+    }
+
+    const accessToken = await getFedExAccessToken();
+    if (!accessToken) {
+      throw new Error("FedEx OAuth did not return an access token for shipment purchase.");
+    }
+
+    const payload = await requestFedExShipment(accessToken, args) as FedExShipmentReply;
+    return normalizeFedExShipment(payload, args.rate);
   }
 
   async voidLabel(): Promise<{ accepted: boolean }> {
