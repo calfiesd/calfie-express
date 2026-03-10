@@ -1,6 +1,6 @@
-"use client";
+﻿"use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { PaymentCheckout } from "@/components/dashboard/payment-checkout";
 import type {
   CarrierRate,
@@ -53,9 +53,22 @@ export function DashboardClient({
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [orderMessage, setOrderMessage] = useState<string | null>(null);
   const [checkoutMessage, setCheckoutMessage] = useState<string | null>(null);
-  const [isQuotePending, startQuoteTransition] = useTransition();
-  const [isOrderPending, startOrderTransition] = useTransition();
-  const [isCheckoutPending, startCheckoutTransition] = useTransition();
+  const [isQuotePending, setIsQuotePending] = useState(false);
+  const [isOrderPending, setIsOrderPending] = useState(false);
+  const [isCheckoutPending, setIsCheckoutPending] = useState(false);
+
+  function resetDraftState() {
+    setOrderDraft(null);
+    setCheckoutDraft(null);
+    setPurchaseResult(null);
+    setOrderMessage(null);
+    setCheckoutMessage(null);
+  }
+
+  function chooseRate(rate: CarrierRate) {
+    setSelectedRate(rate);
+    resetDraftState();
+  }
 
   function updateField<K extends keyof ShipmentInput>(key: K, value: ShipmentInput[K]) {
     setShipment((current) => ({ ...current, [key]: value }));
@@ -71,12 +84,12 @@ export function DashboardClient({
     }));
   }
 
-  function submitQuote() {
+  async function submitQuote() {
     setQuoteError(null);
-    setOrderDraft(null);
-    setCheckoutDraft(null);
-    setPurchaseResult(null);
-    startQuoteTransition(async () => {
+    resetDraftState();
+    setIsQuotePending(true);
+
+    try {
       const response = await fetch("/api/quotes", {
         method: "POST",
         headers: {
@@ -93,11 +106,19 @@ export function DashboardClient({
 
       const nextQuote = (await response.json()) as UpsQuoteResponse;
       setQuote(nextQuote);
-      setSelectedRate(nextQuote.rates[0] ?? null);
-    });
+
+      if (nextQuote.rates[0]) {
+        chooseRate(nextQuote.rates[0]);
+      } else {
+        setSelectedRate(null);
+        resetDraftState();
+      }
+    } finally {
+      setIsQuotePending(false);
+    }
   }
 
-  function createOrderDraft() {
+  async function createOrderDraft() {
     if (!selectedRate) {
       setOrderMessage("Choose a carrier service first.");
       return;
@@ -106,7 +127,9 @@ export function DashboardClient({
     setOrderMessage(null);
     setCheckoutDraft(null);
     setPurchaseResult(null);
-    startOrderTransition(async () => {
+    setIsOrderPending(true);
+
+    try {
       const response = await fetch("/api/orders", {
         method: "POST",
         headers: {
@@ -123,10 +146,12 @@ export function DashboardClient({
       const payload = await response.json();
       setOrderDraft(payload.order as OrderDraft);
       setOrderMessage(payload.note as string);
-    });
+    } finally {
+      setIsOrderPending(false);
+    }
   }
 
-  function createCheckoutDraft() {
+  async function createCheckoutDraft() {
     if (!orderDraft) {
       setCheckoutMessage("Create an order draft before starting checkout.");
       return;
@@ -134,7 +159,9 @@ export function DashboardClient({
 
     setCheckoutMessage(null);
     setPurchaseResult(null);
-    startCheckoutTransition(async () => {
+    setIsCheckoutPending(true);
+
+    try {
       const response = await fetch("/api/payments/payment-intent", {
         method: "POST",
         headers: {
@@ -151,7 +178,9 @@ export function DashboardClient({
       const payload = await response.json();
       setCheckoutDraft(payload.checkout as CheckoutDraft);
       setCheckoutMessage(payload.note as string);
-    });
+    } finally {
+      setIsCheckoutPending(false);
+    }
   }
 
   return (
@@ -242,7 +271,7 @@ export function DashboardClient({
               {selectedRate.carrier === "UPS" ? <p className="muted">Simple Rate: {shipment.simpleRate ? "Requested" : "Off"}</p> : null}
               {selectedRate.carrier === "FEDEX" ? <p className="muted">FedEx labels use the same live-purchase safety switch as UPS. Keep ALLOW_LIVE_LABEL_PURCHASE=false until you are ready for real carrier charges.</p> : null}
               <div className="actions">
-                <button className="button primary" type="button" onClick={createOrderDraft} disabled={isOrderPending}>{isOrderPending ? "Creating draft..." : "Create order draft"}</button>
+                <button className="button primary" type="button" onClick={createOrderDraft} disabled={!selectedRate || isOrderPending || isQuotePending}>{isOrderPending ? "Creating draft..." : "Create order draft"}</button>
                 <button className="button" type="button" onClick={createCheckoutDraft} disabled={isCheckoutPending || !orderDraft}>{isCheckoutPending ? "Preparing checkout..." : "Prepare checkout"}</button>
               </div>
             </>
@@ -315,7 +344,7 @@ export function DashboardClient({
           <tbody>
             {quote.rates.map((rate) => {
               const selected = selectedRate?.carrier === rate.carrier && selectedRate?.serviceCode === rate.serviceCode;
-              return <tr key={`${rate.carrier}-${rate.serviceCode}`}><td><button className="button" type="button" onClick={() => setSelectedRate(rate)}>{selected ? "Selected" : "Choose"}</button></td><td>{rate.carrier}</td><td>{rate.serviceName}</td><td>{rate.accountLabel ?? rate.accountNumber ?? "-"}</td><td>{rate.transitDays} day(s)</td><td>{money(rate.carrierCost)}</td><td>{money(rate.customerPrice)}</td><td>{money(rate.customerPrice - rate.carrierCost)}</td></tr>;
+              return <tr key={`${rate.carrier}-${rate.serviceCode}`}><td><button className="button" type="button" onClick={() => chooseRate(rate)}>{selected ? "Selected" : "Choose"}</button></td><td>{rate.carrier}</td><td>{rate.serviceName}</td><td>{rate.accountLabel ?? rate.accountNumber ?? "-"}</td><td>{rate.transitDays} day(s)</td><td>{money(rate.carrierCost)}</td><td>{money(rate.customerPrice)}</td><td>{money(rate.customerPrice - rate.carrierCost)}</td></tr>;
             })}
           </tbody>
         </table>
@@ -323,6 +352,4 @@ export function DashboardClient({
     </>
   );
 }
-
-
 
