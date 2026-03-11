@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { getSessionUser } from "@/lib/auth/session";
 import { LogoutButton } from "@/components/auth/logout-button";
 
@@ -18,9 +18,11 @@ export async function SiteNav() {
       <div className="nav-links">
         <Link href="/">Home</Link>
         {user ? <Link href="/dashboard">Customer Portal</Link> : <Link href="/login">Login</Link>}
+        {user ? <Link href="/batch/ups">UPS Batch</Link> : null}
         {user ? <Link href="/orders">Orders</Link> : null}
         {isAdmin ? <Link href="/admin">Admin</Link> : null}
         {isAdmin ? <Link href="/admin/orders">Admin Orders</Link> : null}
+        {isAdmin ? <Link href="/admin/customers">Admin Customers</Link> : null}
         {user ? <span className="muted">{user.email}</span> : null}
         {user ? <LogoutButton /> : null}
       </div>

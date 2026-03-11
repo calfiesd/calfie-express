@@ -1,4 +1,4 @@
-export type CarrierCode = "UPS" | "FEDEX";
+﻿export type CarrierCode = "UPS" | "FEDEX";
 
 export type PricingProfile = {
   userId: string;
@@ -7,6 +7,10 @@ export type PricingProfile = {
   minimumProfit: number;
   residentialSurcharge: number;
   signatureSurcharge: number;
+  allowUps?: boolean;
+  allowFedex?: boolean;
+  allowUpsPurchase?: boolean;
+  allowFedexPurchase?: boolean;
 };
 
 export type AddressInput = {
@@ -80,6 +84,34 @@ export type UpsQuoteResponse = {
   note: string;
 };
 
+
+export type UpsBatchPreviewRow = {
+  rowNumber: number;
+  recipientName: string;
+  companyName?: string;
+  destination: string;
+  reference1?: string;
+  requestedServiceCode: string;
+  requestedServiceName: string;
+  accountNumber?: string;
+  accountLabel?: string;
+  carrierCost?: number;
+  customerPrice?: number;
+  status: "quoted" | "error";
+  message?: string;
+};
+
+export type UpsBatchPreviewResponse = {
+  rows: UpsBatchPreviewRow[];
+  totals: {
+    rowCount: number;
+    quotedCount: number;
+    errorCount: number;
+    carrierCostTotal: number;
+    customerPriceTotal: number;
+  };
+  note: string;
+};
 export type OrderDraft = {
   id: string;
   shipment: ShipmentInput;
@@ -116,3 +148,5 @@ export type CustomerAccountSummary = {
   stripeCustomerId?: string;
   pricingProfile: PricingProfile;
 };
+
+
