@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import { UpsAdapter } from "@/lib/carriers/ups";
 import { FedExAdapter } from "@/lib/carriers/fedex";
 import { demoShipment } from "@/lib/mock-data";
@@ -25,8 +25,17 @@ export async function POST(request: Request) {
     signatureSurcharge: Number(user.pricingProfile.signatureSurcharge)
   };
 
-  const upsResult = await new UpsAdapter().getRatesWithDiagnostics(shipment, pricingProfile);
-  const fedexResult = await new FedExAdapter().getRatesWithDiagnostics(shipment, pricingProfile);
+  const allowUps = user.pricingProfile.allowUps !== false;
+  const allowFedex = user.pricingProfile.allowFedex !== false;
+
+  const upsResult = allowUps
+    ? await new UpsAdapter().getRatesWithDiagnostics(shipment, pricingProfile)
+    : { rates: [], mode: "disabled", diagnostic: "UPS is disabled for this customer.", debugAccounts: [] };
+
+  const fedexResult = allowFedex
+    ? await new FedExAdapter().getRatesWithDiagnostics(shipment, pricingProfile)
+    : { rates: [], status: { mode: "disabled", diagnostic: "FedEx is disabled for this customer." } };
+
   const rates = [...upsResult.rates, ...fedexResult.rates].sort((left, right) => left.customerPrice - right.customerPrice);
 
   return NextResponse.json({
@@ -36,6 +45,6 @@ export async function POST(request: Request) {
     diagnostic: [upsResult.diagnostic, fedexResult.status.diagnostic].filter(Boolean).join(" || "),
     debugAccounts: upsResult.debugAccounts,
     fedexStatus: fedexResult.status,
-    note: "Carrier comparison endpoint. UPS uses your single active UPS account. FedEx status is shown explicitly as live, fallback, or misconfigured."
+    note: "Carrier comparison endpoint. Customer carrier access rules can disable UPS or FedEx per account."
   });
 }

@@ -1,4 +1,4 @@
-import { cookies } from "next/headers";
+﻿import { cookies } from "next/headers";
 import { prisma } from "@/lib/db";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 
@@ -74,7 +74,9 @@ export async function registerWithPassword(args: {
           flatFee: 1.5,
           minimumProfit: 4,
           residentialSurcharge: 1,
-          signatureSurcharge: 2.5
+          signatureSurcharge: 2.5,
+          allowUps: true,
+          allowFedex: true
         }
       }
     },

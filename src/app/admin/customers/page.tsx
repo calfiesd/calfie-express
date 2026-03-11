@@ -20,14 +20,18 @@ export default async function AdminCustomersPage() {
     email: customer.email,
     name: customer.name,
     companyName: customer.companyName,
-    pricingProfile: customer.pricingProfile ? {
-      markupPercent: Number(customer.pricingProfile.markupPercent),
-      flatFee: Number(customer.pricingProfile.flatFee),
-      minimumProfit: Number(customer.pricingProfile.minimumProfit),
-      residentialSurcharge: Number(customer.pricingProfile.residentialSurcharge),
-      signatureSurcharge: Number(customer.pricingProfile.signatureSurcharge),
-      enabled: customer.pricingProfile.enabled
-    } : null,
+    pricingProfile: customer.pricingProfile
+      ? {
+          markupPercent: Number(customer.pricingProfile.markupPercent),
+          flatFee: Number(customer.pricingProfile.flatFee),
+          minimumProfit: Number(customer.pricingProfile.minimumProfit),
+          residentialSurcharge: Number(customer.pricingProfile.residentialSurcharge),
+          signatureSurcharge: Number(customer.pricingProfile.signatureSurcharge),
+          enabled: customer.pricingProfile.enabled,
+          allowUps: customer.pricingProfile.allowUps !== false,
+          allowFedex: customer.pricingProfile.allowFedex !== false
+        }
+      : null,
     _count: customer._count,
     orders: customer.orders.map((order) => ({
       id: order.id,
@@ -44,7 +48,7 @@ export default async function AdminCustomersPage() {
           <p className="eyebrow">Admin customers</p>
           <h1>Manage customer pricing and account status</h1>
           <p className="copy">
-            Update markup rules, disable customer pricing when needed, and monitor who is actively creating quotes and orders.
+            Update markup rules, disable customer pricing when needed, and control which carriers each customer can quote.
           </p>
         </div>
         <div className="grid-2">

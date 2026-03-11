@@ -14,6 +14,8 @@ type CustomerRow = {
     residentialSurcharge: number;
     signatureSurcharge: number;
     enabled: boolean;
+    allowUps: boolean;
+    allowFedex: boolean;
   } | null;
   _count: {
     orders: number;
@@ -41,6 +43,8 @@ type CreateCustomerForm = {
   residentialSurcharge: string;
   signatureSurcharge: string;
   enabled: boolean;
+  allowUps: boolean;
+  allowFedex: boolean;
 };
 
 function asInput(value: number | undefined) {
@@ -91,7 +95,9 @@ function normalizeCustomer(customer: any): CustomerRow {
           minimumProfit: Number(customer.pricingProfile.minimumProfit),
           residentialSurcharge: Number(customer.pricingProfile.residentialSurcharge),
           signatureSurcharge: Number(customer.pricingProfile.signatureSurcharge),
-          enabled: Boolean(customer.pricingProfile.enabled)
+          enabled: Boolean(customer.pricingProfile.enabled),
+          allowUps: customer.pricingProfile.allowUps !== false,
+          allowFedex: customer.pricingProfile.allowFedex !== false
         }
       : null,
     _count: {
@@ -128,7 +134,9 @@ export function CustomerManagement({ customers }: Props) {
     minimumProfit: "4",
     residentialSurcharge: "1",
     signatureSurcharge: "2.5",
-    enabled: true
+    enabled: true,
+    allowUps: true,
+    allowFedex: true
   });
 
   const selected = rows.find((row) => row.id === selectedId) ?? rows[0] ?? null;
@@ -153,14 +161,16 @@ export function CustomerManagement({ customers }: Props) {
           minimumProfit: 0,
           residentialSurcharge: 0,
           signatureSurcharge: 0,
-          enabled: true
+          enabled: true,
+          allowUps: true,
+          allowFedex: true
         };
 
         return {
           ...row,
           pricingProfile: {
             ...pricingProfile,
-            [field]: field === "enabled" ? Boolean(value) : Number(value)
+            [field]: ["enabled", "allowUps", "allowFedex"].includes(field) ? Boolean(value) : Number(value)
           }
         };
       })
@@ -195,7 +205,9 @@ export function CustomerManagement({ customers }: Props) {
         minimumProfit: selected.pricingProfile?.minimumProfit ?? 0,
         residentialSurcharge: selected.pricingProfile?.residentialSurcharge ?? 0,
         signatureSurcharge: selected.pricingProfile?.signatureSurcharge ?? 0,
-        enabled: selected.pricingProfile?.enabled ?? true
+        enabled: selected.pricingProfile?.enabled ?? true,
+        allowUps: selected.pricingProfile?.allowUps ?? true,
+        allowFedex: selected.pricingProfile?.allowFedex ?? true
       })
     });
 
@@ -243,7 +255,9 @@ export function CustomerManagement({ customers }: Props) {
         minimumProfit: Number(createForm.minimumProfit),
         residentialSurcharge: Number(createForm.residentialSurcharge),
         signatureSurcharge: Number(createForm.signatureSurcharge),
-        enabled: createForm.enabled
+        enabled: createForm.enabled,
+        allowUps: createForm.allowUps,
+        allowFedex: createForm.allowFedex
       })
     });
 
@@ -270,7 +284,9 @@ export function CustomerManagement({ customers }: Props) {
       minimumProfit: "4",
       residentialSurcharge: "1",
       signatureSurcharge: "2.5",
-      enabled: true
+      enabled: true,
+      allowUps: true,
+      allowFedex: true
     });
     setCreateMessage(payload.message ?? "Customer created.");
     setCreating(false);
@@ -369,6 +385,20 @@ export function CustomerManagement({ customers }: Props) {
               <option value="disabled">Disabled</option>
             </select>
           </label>
+          <label className="field">
+            <span>Allow UPS</span>
+            <select value={createForm.allowUps ? "enabled" : "disabled"} onChange={(event) => updateCreateForm("allowUps", event.target.value === "enabled")}>
+              <option value="enabled">Enabled</option>
+              <option value="disabled">Disabled</option>
+            </select>
+          </label>
+          <label className="field">
+            <span>Allow FedEx</span>
+            <select value={createForm.allowFedex ? "enabled" : "disabled"} onChange={(event) => updateCreateForm("allowFedex", event.target.value === "enabled")}>
+              <option value="enabled">Enabled</option>
+              <option value="disabled">Disabled</option>
+            </select>
+          </label>
         </div>
 
         <div className="actions">
@@ -390,13 +420,14 @@ export function CustomerManagement({ customers }: Props) {
         <div className="card">
           <p className="eyebrow">Customer management</p>
           <h2>Customer pricing profiles</h2>
-          <p className="muted">Select a customer to adjust markup, fees, and surcharges without touching the database directly.</p>
+          <p className="muted">Select a customer to adjust markup, fees, surcharges, and carrier access without touching the database directly.</p>
           <div className="table" style={{ marginTop: "16px" }}>
             <table>
               <thead>
                 <tr>
                   <th>Customer</th>
                   <th>Markup</th>
+                  <th>Carriers</th>
                   <th>Orders</th>
                   <th>Status</th>
                 </tr>
@@ -404,6 +435,9 @@ export function CustomerManagement({ customers }: Props) {
               <tbody>
                 {rows.map((row) => {
                   const active = row.id === selectedId;
+                  const carriers = row.pricingProfile
+                    ? [row.pricingProfile.allowUps ? "UPS" : null, row.pricingProfile.allowFedex ? "FedEx" : null].filter(Boolean).join(" + ") || "None"
+                    : "-";
                   return (
                     <tr key={row.id} onClick={() => setSelectedId(row.id)} style={{ cursor: "pointer", background: active ? "rgba(210, 163, 77, 0.12)" : undefined }}>
                       <td>
@@ -411,6 +445,7 @@ export function CustomerManagement({ customers }: Props) {
                         <div className="muted">{row.email}</div>
                       </td>
                       <td>{row.pricingProfile ? `${row.pricingProfile.markupPercent}%` : "-"}</td>
+                      <td>{carriers}</td>
                       <td>{row._count.orders}</td>
                       <td>{row.pricingProfile?.enabled === false ? "Disabled" : "Active"}</td>
                     </tr>
@@ -458,6 +493,20 @@ export function CustomerManagement({ customers }: Props) {
                 <label className="field">
                   <span>Profile enabled</span>
                   <select value={selected.pricingProfile?.enabled === false ? "disabled" : "enabled"} onChange={(event) => updateSelected("enabled", event.target.value === "enabled")}>
+                    <option value="enabled">Enabled</option>
+                    <option value="disabled">Disabled</option>
+                  </select>
+                </label>
+                <label className="field">
+                  <span>Allow UPS</span>
+                  <select value={selected.pricingProfile?.allowUps === false ? "disabled" : "enabled"} onChange={(event) => updateSelected("allowUps", event.target.value === "enabled")}>
+                    <option value="enabled">Enabled</option>
+                    <option value="disabled">Disabled</option>
+                  </select>
+                </label>
+                <label className="field">
+                  <span>Allow FedEx</span>
+                  <select value={selected.pricingProfile?.allowFedex === false ? "disabled" : "enabled"} onChange={(event) => updateSelected("allowFedex", event.target.value === "enabled")}>
                     <option value="enabled">Enabled</option>
                     <option value="disabled">Disabled</option>
                   </select>

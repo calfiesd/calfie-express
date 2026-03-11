@@ -45,21 +45,21 @@ enum AdjustmentStatus {
 }
 
 model User {
-  id                   String               @id @default(cuid())
-  email                String               @unique
+  id                   String              @id @default(cuid())
+  email                String              @unique
   passwordHash         String
   name                 String
   companyName          String?
-  role                 UserRole             @default(CUSTOMER)
+  role                 UserRole            @default(CUSTOMER)
   stripeCustomerId     String?
   defaultPaymentMethod String?
-  createdAt            DateTime             @default(now())
-  updatedAt            DateTime             @updatedAt
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
   pricingProfile       PricingProfile?
   savedAddresses       SavedAddress[]
   quotes               Quote[]
   orders               Order[]
-  adjustmentCharges    CarrierAdjustment[]  @relation("CustomerAdjustments")
+  adjustmentCharges    CarrierAdjustment[] @relation("CustomerAdjustments")
 }
 
 model PricingProfile {
@@ -71,6 +71,8 @@ model PricingProfile {
   residentialSurcharge Decimal  @default(0) @db.Decimal(10, 2)
   signatureSurcharge   Decimal  @default(0) @db.Decimal(10, 2)
   enabled              Boolean  @default(true)
+  allowUps             Boolean  @default(true)
+  allowFedex           Boolean  @default(true)
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
   user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -96,48 +98,48 @@ model SavedAddress {
 }
 
 model Quote {
-  id                  String      @id @default(cuid())
-  userId              String
-  status              QuoteStatus @default(DRAFT)
-  shipFromPostalCode  String
-  shipToPostalCode    String
-  shipDate            DateTime?
-  packageLength       Decimal     @db.Decimal(10, 2)
-  packageWidth        Decimal     @db.Decimal(10, 2)
-  packageHeight       Decimal     @db.Decimal(10, 2)
-  packageWeight       Decimal     @db.Decimal(10, 2)
-  declaredValue       Decimal     @default(0) @db.Decimal(10, 2)
-  residential         Boolean     @default(false)
-  signatureRequired   Boolean     @default(false)
-  shipmentJson        Json?
-  ratesJson           Json?
-  createdAt           DateTime    @default(now())
-  expiresAt           DateTime?
-  user                User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  orders              Order[]
+  id                 String      @id @default(cuid())
+  userId             String
+  status             QuoteStatus @default(DRAFT)
+  shipFromPostalCode String
+  shipToPostalCode   String
+  shipDate           DateTime?
+  packageLength      Decimal     @db.Decimal(10, 2)
+  packageWidth       Decimal     @db.Decimal(10, 2)
+  packageHeight      Decimal     @db.Decimal(10, 2)
+  packageWeight      Decimal     @db.Decimal(10, 2)
+  declaredValue      Decimal     @default(0) @db.Decimal(10, 2)
+  residential        Boolean     @default(false)
+  signatureRequired  Boolean     @default(false)
+  shipmentJson       Json?
+  ratesJson          Json?
+  createdAt          DateTime    @default(now())
+  expiresAt          DateTime?
+  user               User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders             Order[]
 }
 
 model Order {
-  id                     String              @id @default(cuid())
-  userId                 String
-  quoteId                String
-  status                 OrderStatus         @default(PENDING_PAYMENT)
-  selectedCarrier        CarrierCode
-  selectedService        String
-  quotedCustomerAmount   Decimal             @db.Decimal(10, 2)
-  quotedCarrierAmount    Decimal             @db.Decimal(10, 2)
-  actualCarrierAmount    Decimal?            @db.Decimal(10, 2)
-  marginAmount           Decimal             @db.Decimal(10, 2)
-  shipmentJson           Json?
-  selectedRateJson       Json?
-  trackingNumber         String?
-  labelUrl               String?
-  stripePaymentIntentId  String?
-  createdAt              DateTime            @default(now())
-  updatedAt              DateTime            @updatedAt
-  user                   User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  quote                  Quote               @relation(fields: [quoteId], references: [id], onDelete: Cascade)
-  adjustments            CarrierAdjustment[]
+  id                    String              @id @default(cuid())
+  userId                String
+  quoteId               String
+  status                OrderStatus         @default(PENDING_PAYMENT)
+  selectedCarrier       CarrierCode
+  selectedService       String
+  quotedCustomerAmount  Decimal             @db.Decimal(10, 2)
+  quotedCarrierAmount   Decimal             @db.Decimal(10, 2)
+  actualCarrierAmount   Decimal?            @db.Decimal(10, 2)
+  marginAmount          Decimal             @db.Decimal(10, 2)
+  shipmentJson          Json?
+  selectedRateJson      Json?
+  trackingNumber        String?
+  labelUrl              String?
+  stripePaymentIntentId String?
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  user                  User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quote                 Quote               @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  adjustments           CarrierAdjustment[]
 }
 
 model CarrierAdjustment {

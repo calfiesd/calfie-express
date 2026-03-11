@@ -48,7 +48,9 @@ export async function POST(request: Request) {
           minimumProfit: toNumber(body?.minimumProfit, 4),
           residentialSurcharge: toNumber(body?.residentialSurcharge, 1),
           signatureSurcharge: toNumber(body?.signatureSurcharge, 2.5),
-          enabled: body?.enabled === false ? false : true
+          enabled: body?.enabled === false ? false : true,
+          allowUps: body?.allowUps === false ? false : true,
+          allowFedex: body?.allowFedex === false ? false : true
         }
       }
     },

@@ -42,7 +42,9 @@ export async function PATCH(
             minimumProfit: toNumber(body?.minimumProfit, 0),
             residentialSurcharge: toNumber(body?.residentialSurcharge, 0),
             signatureSurcharge: toNumber(body?.signatureSurcharge, 0),
-            enabled: Boolean(body?.enabled ?? true)
+            enabled: Boolean(body?.enabled ?? true),
+            allowUps: body?.allowUps === false ? false : true,
+            allowFedex: body?.allowFedex === false ? false : true
           },
           update: {
             markupPercent: toNumber(body?.markupPercent, Number(customer.pricingProfile?.markupPercent ?? 12)),
@@ -50,7 +52,9 @@ export async function PATCH(
             minimumProfit: toNumber(body?.minimumProfit, Number(customer.pricingProfile?.minimumProfit ?? 0)),
             residentialSurcharge: toNumber(body?.residentialSurcharge, Number(customer.pricingProfile?.residentialSurcharge ?? 0)),
             signatureSurcharge: toNumber(body?.signatureSurcharge, Number(customer.pricingProfile?.signatureSurcharge ?? 0)),
-            enabled: Boolean(body?.enabled ?? customer.pricingProfile?.enabled ?? true)
+            enabled: Boolean(body?.enabled ?? customer.pricingProfile?.enabled ?? true),
+            allowUps: body?.allowUps === false ? false : Boolean(customer.pricingProfile?.allowUps ?? true),
+            allowFedex: body?.allowFedex === false ? false : Boolean(customer.pricingProfile?.allowFedex ?? true)
           }
         }
       }
