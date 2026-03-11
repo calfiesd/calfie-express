@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { SiteNav } from "@/components/site-nav";
+import { OrderVoidAction } from "@/components/orders/order-void-action";
 import { getStoredOrderById } from "@/lib/orders";
 import { requireUser } from "@/lib/auth/session";
 
@@ -29,7 +30,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         <p className="muted">Review tracking, shipment information, and re-open the label output.</p>
       </section>
 
-      <section className="section grid-3">
+      <section className="section grid-2">
         <div className="card">
           <h2>Status</h2>
           <p className="muted">{order.status}</p>
@@ -45,6 +46,11 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           <h2>Reprint</h2>
           {order.labelUrl ? <a href={order.labelUrl} target="_blank">Open stored label</a> : <p className="muted">No label saved yet.</p>}
         </div>
+        <OrderVoidAction
+          orderId={order.id}
+          initialStatus={order.status}
+          allowVoid={["LABEL_PURCHASED", "PAID", "VOID_REQUESTED"].includes(order.status)}
+        />
       </section>
 
       <section className="section grid-2">

@@ -255,7 +255,16 @@ export class UpsAdapter implements CarrierAdapter {
     return normalizeUpsShipment(payload, args.rate);
   }
 
-  async voidLabel(): Promise<{ accepted: boolean }> {
-    return { accepted: true };
+  async voidLabel(args: {
+    orderId: string;
+    trackingNumber?: string | null;
+    shipment?: ShipmentInput | null;
+    rate?: CarrierRate | null;
+  }): Promise<{ accepted: boolean; mode: "live" | "manual" | "demo"; diagnostic?: string }> {
+    return {
+      accepted: false,
+      mode: "manual",
+      diagnostic: `Automatic UPS void is not implemented yet. Void shipment ${args.trackingNumber ?? args.orderId} manually in UPS, then mark the order refunded.`
+    };
   }
 }
