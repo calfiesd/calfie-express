@@ -1,4 +1,4 @@
-﻿export const dynamic = "force-dynamic";
+export const dynamic = "force-dynamic";
 
 import { SiteNav } from "@/components/site-nav";
 import { CustomerManagement } from "@/components/admin/customer-management";
@@ -20,6 +20,24 @@ export default async function AdminCustomersPage() {
     email: customer.email,
     name: customer.name,
     companyName: customer.companyName,
+    walletBalance: Number(customer.walletBalance),
+    walletTransactions: customer.walletTransactions.map((transaction) => ({
+      id: transaction.id,
+      type: transaction.type,
+      status: transaction.status,
+      amount: Number(transaction.amount),
+      balanceAfter: Number(transaction.balanceAfter),
+      description: transaction.description,
+      createdAt: transaction.createdAt.toISOString(),
+      order: transaction.order
+        ? {
+            id: transaction.order.id,
+            selectedCarrier: transaction.order.selectedCarrier,
+            selectedService: transaction.order.selectedService,
+            status: transaction.order.status
+          }
+        : null
+    })),
     pricingProfile: customer.pricingProfile
       ? {
           markupPercent: Number(customer.pricingProfile.markupPercent),
@@ -29,7 +47,9 @@ export default async function AdminCustomersPage() {
           signatureSurcharge: Number(customer.pricingProfile.signatureSurcharge),
           enabled: customer.pricingProfile.enabled,
           allowUps: customer.pricingProfile.allowUps !== false,
-          allowFedex: customer.pricingProfile.allowFedex !== false
+          allowFedex: customer.pricingProfile.allowFedex !== false,
+          allowUpsPurchase: customer.pricingProfile.allowUpsPurchase !== false,
+          allowFedexPurchase: customer.pricingProfile.allowFedexPurchase !== false
         }
       : null,
     _count: customer._count,
@@ -48,7 +68,7 @@ export default async function AdminCustomersPage() {
           <p className="eyebrow">Admin customers</p>
           <h1>Manage customer pricing and account status</h1>
           <p className="copy">
-            Update markup rules, disable customer pricing when needed, and control which carriers each customer can quote.
+            Update markup rules, disable customer pricing when needed, control carrier access, and adjust prepaid wallet balances for support and reconciliation.
           </p>
         </div>
         <div className="grid-2">
@@ -58,9 +78,9 @@ export default async function AdminCustomersPage() {
             <div className="muted">Signed-up customer profiles in PostgreSQL</div>
           </div>
           <div className="card">
-            <div className="muted">Profiles enabled</div>
-            <div className="kpi">{normalizedCustomers.filter((customer) => customer.pricingProfile?.enabled !== false).length}</div>
-            <div className="muted">Customers currently allowed to quote and buy labels</div>
+            <div className="muted">Wallet balance on file</div>
+            <div className="kpi">${normalizedCustomers.reduce((sum, customer) => sum + customer.walletBalance, 0).toFixed(2)}</div>
+            <div className="muted">Combined prepaid customer balance across all wallets</div>
           </div>
         </div>
       </section>

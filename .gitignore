@@ -1,5 +1,7 @@
-﻿node_modules/
+node_modules/
 .next/
 .env.local
 .env
 prisma/dev.db
+tsconfig.tsbuildinfo
+public/stored-labels/

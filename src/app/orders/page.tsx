@@ -30,9 +30,11 @@ export default async function OrdersPage() {
             <tr>
               <th>Order ID</th>
               <th>Status</th>
+              <th>Paid with</th>
               <th>Service</th>
               <th>Customer amount</th>
               <th>Tracking</th>
+              <th>Adjustments</th>
               <th>Label ready</th>
               <th>Open</th>
             </tr>
@@ -42,9 +44,15 @@ export default async function OrdersPage() {
               <tr key={order.id}>
                 <td>{order.id}</td>
                 <td>{order.status}</td>
+                <td>{order.paymentSource}</td>
                 <td>{order.selectedService}</td>
                 <td>${Number(order.quotedCustomerAmount).toFixed(2)}</td>
                 <td>{order.trackingNumber ?? "Pending"}</td>
+                <td>
+                  {order.adjustments.length
+                    ? `${order.adjustments.filter((item) => ["PENDING", "BILLED", "FAILED"].includes(item.status)).length} open / ${order.adjustments.length} total`
+                    : "None"}
+                </td>
                 <td>{order.labelUrl ? "Yes" : "No"}</td>
                 <td><Link href={`/orders/${order.id}`}>View</Link></td>
               </tr>

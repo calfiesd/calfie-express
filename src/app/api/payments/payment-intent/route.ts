@@ -28,6 +28,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "Order draft not found for this account." }, { status: 404 });
   }
 
+  if (storedOrder.selectedCarrier === "UPS" && user.pricingProfile?.allowUpsPurchase === false) {
+    return NextResponse.json({ message: "UPS purchase is disabled for this customer." }, { status: 403 });
+  }
+
+  if (storedOrder.selectedCarrier === "FEDEX" && user.pricingProfile?.allowFedexPurchase === false) {
+    return NextResponse.json({ message: "FedEx purchase is disabled for this customer." }, { status: 403 });
+  }
+
   const amount = Number(storedOrder.quotedCustomerAmount);
   const payment = await createPaymentIntent({
     amount,

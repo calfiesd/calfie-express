@@ -1,15 +1,17 @@
-﻿import { NextResponse } from "next/server";
-import { createAdjustmentCharge } from "@/lib/payments/stripe";
+import { NextResponse } from "next/server";
+import { requireUser } from "@/lib/auth/session";
+import { getCustomerCarrierAdjustments } from "@/lib/adjustments";
 
-export async function POST() {
-  const result = await createAdjustmentCharge({
-    customerId: "cust_demo_001",
-    amount: 6.45,
-    reason: "Carrier billed higher dimensional weight"
-  });
+export async function GET() {
+  const user = await requireUser();
 
+  if (!user) {
+    return NextResponse.json({ message: "Sign in required." }, { status: 401 });
+  }
+
+  const adjustments = await getCustomerCarrierAdjustments(user.id);
   return NextResponse.json({
-    result,
-    note: "Connect this route to real carrier adjustment ingestion and saved-payment-method billing."
+    ok: true,
+    adjustments
   });
 }

@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { SiteNav } from "@/components/site-nav";
 
 export default function HomePage() {
@@ -7,12 +7,12 @@ export default function HomePage() {
       <SiteNav />
       <section className="hero">
         <div>
-          <p className="eyebrow">Production scaffold</p>
-          <h1>CALFIE EXPRESS UPS-first customer account and label platform</h1>
+          <p className="eyebrow">Production shipping operations</p>
+          <h1>CALFIE EXPRESS customer label platform with wallet and batch operations</h1>
           <p className="copy">
-            This scaffold is designed for account-only purchasing, customer-specific markup profiles,
-            saved payment methods, and later rebilling when UPS posts carrier adjustments.
-            FedEx can be added later without changing the customer pricing model.
+            The platform now supports customer-specific pricing, wallet-funded checkout, live UPS purchase,
+            live FedEx rate comparison, admin recovery tools, and UPS batch buying with duplicate protection,
+            retry flows, and stored history.
           </p>
           <div className="actions">
             <Link className="button primary" href="/dashboard">Open customer portal</Link>
@@ -21,14 +21,14 @@ export default function HomePage() {
         </div>
         <div className="grid-2">
           <div className="card">
-            <div className="muted">Phase 1 carrier</div>
-            <div className="kpi">UPS</div>
-            <div className="muted">Launch one full carrier flow first, then add FedEx as phase 2.</div>
+            <div className="muted">Carrier coverage</div>
+            <div className="kpi">UPS + FedEx</div>
+            <div className="muted">UPS purchase is live and FedEx quotes are live, with purchase guarded behind the live-label safety switch.</div>
           </div>
           <div className="card">
-            <div className="muted">Adjustment billing</div>
-            <div className="kpi">Enabled</div>
-            <div className="muted">Store payment methods and terms for post-shipment rebills on carrier corrections.</div>
+            <div className="muted">Stored value</div>
+            <div className="kpi">Wallet</div>
+            <div className="muted">Customers can preload balance, buy labels from wallet, and receive automatic wallet refunds for voids and failed batch rows.</div>
           </div>
         </div>
       </section>
@@ -39,16 +39,16 @@ export default function HomePage() {
           <p className="muted">Each customer account has its own markup percent, flat fee, and minimum profit floor.</p>
         </div>
         <div className="card">
-          <h3>UPS first</h3>
-          <p className="muted">Rate quotes and shipment purchase are centered on UPS for the initial release.</p>
+          <h3>Carrier access</h3>
+          <p className="muted">Admins can enable or disable UPS and FedEx quote and purchase access per customer account.</p>
         </div>
         <div className="card">
-          <h3>Payments</h3>
-          <p className="muted">Stripe is used for initial payment plus later adjustment billing.</p>
+          <h3>Wallet + Stripe</h3>
+          <p className="muted">Stripe funds the wallet, while checkout can run from either stored wallet balance or card payment flows.</p>
         </div>
         <div className="card">
-          <h3>Operations</h3>
-          <p className="muted">Admins can manage pricing profiles, disputes, reprints, voids, and adjustment recovery.</p>
+          <h3>Batch operations</h3>
+          <p className="muted">UPS CSV uploads support quote preview, wallet purchase, duplicate blocking, retry of failed rows, and audit history.</p>
         </div>
       </section>
     </>

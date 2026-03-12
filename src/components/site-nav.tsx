@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Route } from "next";
 import { getSessionUser } from "@/lib/auth/session";
 import { LogoutButton } from "@/components/auth/logout-button";
 
@@ -18,11 +19,23 @@ export async function SiteNav() {
       <div className="nav-links">
         <Link href="/">Home</Link>
         {user ? <Link href="/dashboard">Customer Portal</Link> : <Link href="/login">Login</Link>}
+        {user ? <Link href="/wallet">Wallet</Link> : null}
+        {user ? <Link href={"/quotes" as Route}>Quotes</Link> : null}
+        {user ? <Link href={"/account" as Route}>Account</Link> : null}
+        {user ? <Link href={"/payments" as Route}>Payments</Link> : null}
+        {user ? <Link href={"/adjustments" as Route}>Adjustments</Link> : null}
+        {user ? <Link href="/addresses">Addresses</Link> : null}
         {user ? <Link href="/batch/ups">UPS Batch</Link> : null}
+        {user ? <Link href="/batch/history">Batch History</Link> : null}
         {user ? <Link href="/orders">Orders</Link> : null}
         {isAdmin ? <Link href="/admin">Admin</Link> : null}
         {isAdmin ? <Link href="/admin/orders">Admin Orders</Link> : null}
+        {isAdmin ? <Link href={"/admin/adjustments" as Route}>Admin Adjustments</Link> : null}
         {isAdmin ? <Link href="/admin/customers">Admin Customers</Link> : null}
+        {isAdmin ? <Link href="/admin/batches">Admin Batches</Link> : null}
+        {isAdmin ? <Link href="/admin/carriers">Carrier Status</Link> : null}
+        {isAdmin ? <Link href="/admin/launch">Launch Readiness</Link> : null}
+        {isAdmin ? <Link href="/admin/reconciliation">Reconciliation</Link> : null}
         {user ? <span className="muted">{user.email}</span> : null}
         {user ? <LogoutButton /> : null}
       </div>

@@ -1,103 +1,139 @@
-# Local Development
+﻿# Local Development
 
-You do not need a domain name yet.
+This project is actively developed on Windows with local PostgreSQL, Prisma, Stripe, and carrier credentials.
 
-Use local development for phase 1:
+## Recommended local stack
 
-- App URL: `http://127.0.0.1:3010`
-- Database: local PostgreSQL
-- Stripe webhook testing: Stripe CLI forwarding to localhost
-- Carrier integration: UPS first
-
-## Files already prepared
-
-- `.env.local`: fill this in with your real local secrets
-- `.env.local.example`: clean copy of the same template
-- `.gitignore`: ignores `.env.local` so your secrets stay local
-
-## 1. Install prerequisites
-
-Install these on your Windows machine:
-
-- Node.js LTS
+- Node.js 20.x
 - PostgreSQL
 - Stripe CLI
+- optional: Git for branch/commit work
 
-## 2. Fill in `.env.local`
+## Local app URL
 
-Open `.env.local` and replace the placeholder values with:
+- App URL: `http://127.0.0.1:3010`
 
-- UPS client ID
-- UPS client secret
-- UPS account number
-- Stripe secret key
-- Stripe publishable key
-- Stripe webhook signing secret
-
-For now keep:
-
-- `NEXT_PUBLIC_APP_URL="http://127.0.0.1:3010"`
-
-## 3. Create the database
-
-Create a PostgreSQL database named:
-
-- `calfie_express`
-
-If your username/password are different, update `DATABASE_URL` in `.env.local` and `.env`.
-
-## 4. Install dependencies
-
-Run:
+## 1. Install dependencies
 
 ```powershell
 npm install
 ```
 
-## 5. Generate Prisma client and migrate
+## 2. Fill in `.env.local`
 
-Run:
+Configure at least:
+
+- `DATABASE_URL`
+- `NEXT_PUBLIC_APP_URL="http://127.0.0.1:3010"`
+- `UPS_CLIENT_ID`
+- `UPS_CLIENT_SECRET`
+- `UPS_ACCOUNT_NUMBER`
+- `UPS_API_BASE_URL`
+- `STRIPE_SECRET_KEY`
+- `STRIPE_PUBLISHABLE_KEY`
+- `STRIPE_WEBHOOK_SECRET`
+
+Optional but already supported:
+
+- `UPS_ACCOUNT_NUMBERS`
+- `ALLOW_LIVE_LABEL_PURCHASE`
+- `ALLOW_FEDEX_LABEL_PURCHASE`
+- `FEDEX_API_KEY`
+- `FEDEX_SECRET_KEY`
+- `FEDEX_ACCOUNT_NUMBER`
+- `FEDEX_CHILD_KEY`
+- `FEDEX_CHILD_SECRET`
+- `FEDEX_API_BASE_URL`
+- `POSTMARK_SERVER_TOKEN`
+- `POSTMARK_FROM_EMAIL`
+
+## 3. Generate Prisma client and run migrations
+
+For a fresh local database:
 
 ```powershell
 npx prisma generate
-npx prisma migrate dev --name init
+npx prisma migrate dev
 ```
 
-## 6. Start the app
+For an existing database that should match the checked-in schema:
 
-Run:
+```powershell
+npx prisma generate
+npx prisma migrate deploy
+```
+
+## 4. Start the app
+
+Development:
 
 ```powershell
 npm run dev -- --hostname 127.0.0.1 --port 3010
 ```
 
-Then open:
+Production-style verification:
 
-- `http://127.0.0.1:3010`
+```powershell
+npm run build
+npm run start -- --port 3010
+```
 
-## 7. Test Stripe webhooks locally
+## 5. Stripe webhooks
 
-In another terminal, run:
+In a second terminal:
 
 ```powershell
 stripe login
 stripe listen --forward-to localhost:3010/api/webhooks/stripe
 ```
 
-Stripe CLI will print a webhook signing secret.
-Put that value into:
+Copy the printed signing secret into:
 
 - `STRIPE_WEBHOOK_SECRET`
 
-Then restart the app if needed.
+## 6. Standard verification commands
 
-## 8. Current test endpoints
+```powershell
+npm run lint
+npx tsc --noEmit
+npm run build
+```
 
-- `POST /api/auth/login`
-- `POST /api/payments/setup-intent`
-- `POST /api/quotes`
+## 7. Current working areas
 
-## 9. Current limitation
+These are already implemented locally:
 
-The codebase now includes auth scaffolding, Stripe setup-intent scaffolding, and a UPS OAuth/rating foundation.
-UPS shipment purchase, full persistent auth, and Stripe Elements UI are still the next implementation steps.
+- customer auth
+- live UPS quotes and live UPS purchase
+- FedEx live quotes
+- wallet and ledger flows
+- saved payment method setup
+- saved addresses
+- quote history
+- orders and refunds/voids
+- UPS batch purchase and history
+- admin customer management
+- admin batch history
+- admin carrier adjustments
+
+## 8. Useful local smoke-test pages
+
+- `/login`
+- `/dashboard`
+- `/wallet`
+- `/payments`
+- `/addresses`
+- `/quotes`
+- `/orders`
+- `/adjustments`
+- `/batch/ups`
+- `/batch/history`
+- `/admin`
+- `/admin/customers`
+- `/admin/orders`
+- `/admin/batches`
+- `/admin/adjustments`
+
+## 9. Known local note
+
+`npm run build` uses webpack intentionally. In this workspace, Turbopack hit a Windows Prisma junction issue, so webpack is the stable path.

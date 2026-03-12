@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import { refundPaymentIntent } from "@/lib/payments/stripe";
+import { refundWalletOrder } from "@/lib/wallet";
 
 export async function POST(_request: Request, context: { params: Promise<{ id: string }> }) {
   const user = await requireUser();
@@ -30,9 +31,13 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
   }
 
   let stripeRefund: { mode: "live" | "demo"; refundId: string; status: string } | null = null;
+  let walletRefund: { transactionId: string; amount: number; balance: number; created: boolean } | null = null;
   const diagnostics: string[] = ["Carrier void confirmed manually by admin/user."];
 
-  if (order.stripePaymentIntentId) {
+  if (order.paymentSource === "WALLET") {
+    walletRefund = await refundWalletOrder({ orderId: order.id });
+    diagnostics.push(walletRefund ? `Wallet refund ${walletRefund.created ? "created" : "already applied"}.` : "Wallet order had no refundable debit.");
+  } else if (order.stripePaymentIntentId) {
     stripeRefund = await refundPaymentIntent({
       paymentIntentId: order.stripePaymentIntentId,
       reason: "requested_by_customer"
@@ -48,10 +53,11 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
   });
 
   return NextResponse.json({
-    message: `Order ${updated.id} marked refunded.` ,
+    message: `Order ${updated.id} marked refunded.`,
     orderId: updated.id,
     status: updated.status,
     stripeRefund,
+    walletRefund,
     diagnostic: diagnostics.join(" ")
   });
 }

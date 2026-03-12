@@ -15,7 +15,7 @@ export default async function UpsBatchPage() {
   return (
     <>
       <SiteNav />
-      <UpsBatchClient customerEmail={user.email} />
+      <UpsBatchClient customerEmail={user.email} initialWalletBalance={Number(user.walletBalance ?? 0)} />
     </>
   );
 }

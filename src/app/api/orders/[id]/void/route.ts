@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { UpsAdapter } from "@/lib/carriers/ups";
 import { FedExAdapter } from "@/lib/carriers/fedex";
 import { refundPaymentIntent } from "@/lib/payments/stripe";
+import { refundWalletOrder } from "@/lib/wallet";
 import type { CarrierRate, ShipmentInput } from "@/lib/domain-types";
 
 function getCarrierAdapter(carrier: "UPS" | "FEDEX") {
@@ -58,6 +59,7 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
     refundId: string;
     status: string;
   } | null = null;
+  let walletRefund: { transactionId: string; amount: number; balance: number; created: boolean } | null = null;
   let nextStatus: "VOID_REQUESTED" | "VOIDED" | "REFUNDED" = "VOID_REQUESTED";
   const diagnostics: string[] = [];
 
@@ -68,7 +70,11 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
   if (carrierResult.accepted) {
     nextStatus = "VOIDED";
 
-    if (order.stripePaymentIntentId) {
+    if (order.paymentSource === "WALLET") {
+      walletRefund = await refundWalletOrder({ orderId: order.id });
+      diagnostics.push(walletRefund ? `Wallet refund ${walletRefund.created ? "created" : "already applied"}.` : "Wallet order had no refundable debit.");
+      nextStatus = "REFUNDED";
+    } else if (order.stripePaymentIntentId) {
       stripeRefund = await refundPaymentIntent({
         paymentIntentId: order.stripePaymentIntentId,
         reason: "requested_by_customer"
@@ -99,6 +105,7 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
     status: updated.status,
     carrierResult,
     stripeRefund,
+    walletRefund,
     diagnostic: diagnostics.join(" ")
   });
 }

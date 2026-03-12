@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth/session";
 import { hashPassword } from "@/lib/auth/password";
 import { prisma } from "@/lib/db";
@@ -50,12 +50,30 @@ export async function POST(request: Request) {
           signatureSurcharge: toNumber(body?.signatureSurcharge, 2.5),
           enabled: body?.enabled === false ? false : true,
           allowUps: body?.allowUps === false ? false : true,
-          allowFedex: body?.allowFedex === false ? false : true
+          allowFedex: body?.allowFedex === false ? false : true,
+          allowUpsPurchase: body?.allowUpsPurchase === false ? false : true,
+          allowFedexPurchase: body?.allowFedexPurchase === false ? false : true
         }
       }
     },
     include: {
       pricingProfile: true,
+      walletTransactions: {
+        orderBy: {
+          createdAt: "desc"
+        },
+        take: 8,
+        include: {
+          order: {
+            select: {
+              id: true,
+              selectedCarrier: true,
+              selectedService: true,
+              status: true
+            }
+          }
+        }
+      },
       _count: {
         select: {
           orders: true,

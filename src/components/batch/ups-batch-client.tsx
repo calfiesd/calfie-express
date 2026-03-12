@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState, type ChangeEvent } from "react";
 import type { UpsBatchPreviewResponse } from "@/lib/domain-types";
 
@@ -52,12 +53,15 @@ function money(value: number | undefined) {
 
 type UpsBatchClientProps = {
   customerEmail: string;
+  initialWalletBalance: number;
 };
 
-export function UpsBatchClient({ customerEmail }: UpsBatchClientProps) {
+export function UpsBatchClient({ customerEmail, initialWalletBalance }: UpsBatchClientProps) {
   const [fileName, setFileName] = useState<string>("");
   const [csvText, setCsvText] = useState<string>("");
+  const [walletBalance, setWalletBalance] = useState(initialWalletBalance);
   const [isPending, setIsPending] = useState(false);
+  const [isPurchasePending, setIsPurchasePending] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [result, setResult] = useState<UpsBatchPreviewResponse | null>(null);
 
@@ -70,10 +74,13 @@ export function UpsBatchClient({ customerEmail }: UpsBatchClientProps) {
       { label: "Rows", value: String(result.totals.rowCount) },
       { label: "Quoted", value: String(result.totals.quotedCount) },
       { label: "Errors", value: String(result.totals.errorCount) },
+      { label: "Purchased", value: String(result.totals.purchasedCount ?? 0) },
+      { label: "Failed", value: String(result.totals.failedCount ?? 0) },
       { label: "Customer total", value: money(result.totals.customerPriceTotal) },
-      { label: "Carrier total", value: money(result.totals.carrierCostTotal) }
+      { label: "Carrier total", value: money(result.totals.carrierCostTotal) },
+      { label: "Wallet balance", value: money(walletBalance) }
     ];
-  }, [result]);
+  }, [result, walletBalance]);
 
   async function onFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -109,33 +116,85 @@ export function UpsBatchClient({ customerEmail }: UpsBatchClientProps) {
         body: JSON.stringify({ csvText })
       });
 
+      const payload = await response.json().catch(() => null);
       if (!response.ok) {
-        const payload = await response.json().catch(() => null);
         setErrorMessage(payload?.message ?? `Batch preview failed with status ${response.status}.`);
         return;
       }
 
-      const payload = (await response.json()) as UpsBatchPreviewResponse;
-      setResult(payload);
+      setResult(payload as UpsBatchPreviewResponse);
     } finally {
       setIsPending(false);
     }
   }
+
+  async function purchaseBatch() {
+    if (!csvText.trim()) {
+      setErrorMessage("Upload the UPS CSV file before buying labels.");
+      return;
+    }
+
+    setIsPurchasePending(true);
+    setErrorMessage(null);
+
+    try {
+      const response = await fetch("/api/batch/ups/purchase", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ csvText })
+      });
+
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || !payload?.rows) {
+        setErrorMessage(payload?.message ?? payload?.note ?? `Batch purchase failed with status ${response.status}.`);
+        if (payload?.rows && payload?.totals) {
+          setResult(payload as UpsBatchPreviewResponse);
+        }
+        return;
+      }
+
+      const nextResult = payload as UpsBatchPreviewResponse;
+      setResult(nextResult);
+      const spent = nextResult.rows
+        .filter((row) => row.status === "purchased")
+        .reduce((sum, row) => sum + (row.customerPrice ?? 0), 0);
+      const refundedFailures = nextResult.rows
+        .filter((row) => row.status === "failed")
+        .reduce((sum, row) => sum + (row.customerPrice ?? 0), 0);
+      setWalletBalance((current) => Number((current - spent + refundedFailures).toFixed(2)));
+    } finally {
+      setIsPurchasePending(false);
+    }
+  }
+
+  const hasBlockingErrors = (result?.totals.errorCount ?? 0) > 0;
+  const hasPurchaseOutcome = ((result?.totals.purchasedCount ?? 0) + (result?.totals.failedCount ?? 0)) > 0;
+  const walletCanCoverPreview = walletBalance >= (result?.totals.customerPriceTotal ?? Number.POSITIVE_INFINITY);
+  const canPurchase = Boolean(
+    result &&
+    result.totals.quotedCount > 0 &&
+    !hasBlockingErrors &&
+    !hasPurchaseOutcome &&
+    walletCanCoverPreview &&
+    !isPurchasePending
+  );
 
   return (
     <>
       <section className="section hero">
         <div>
           <p className="eyebrow">UPS batch shipping</p>
-          <h1>Upload the UPS CSV template and preview batch pricing</h1>
+          <h1>Upload the UPS CSV template and buy labels from prepaid balance</h1>
           <p className="copy">
-            This first pass is built around your current UPS-compatible CSV format. Upload the file, review each row, and confirm the total before we add prepaid balance deduction and one-click batch label purchase.
+            Upload the file, review each row, confirm the batch total, then charge the customer wallet and create UPS labels in one batch workflow.
           </p>
         </div>
         <div className="card">
           <div className="muted">Signed in customer</div>
           <div className="kpi" style={{ fontSize: "24px" }}>{customerEmail}</div>
-          <div className="muted">UPS batch preview currently uses your customer pricing profile and your primary UPS account.</div>
+          <div className="muted">Wallet available: {money(walletBalance)}</div>
         </div>
       </section>
 
@@ -152,18 +211,23 @@ export function UpsBatchClient({ customerEmail }: UpsBatchClientProps) {
             <button type="button" style={isPending ? disabledPrimaryButtonStyle : primaryButtonStyle} disabled={isPending} onClick={previewBatch}>
               {isPending ? "Previewing batch..." : "Preview UPS batch"}
             </button>
+            <button type="button" style={canPurchase ? primaryButtonStyle : disabledPrimaryButtonStyle} disabled={!canPurchase} onClick={purchaseBatch}>
+              {isPurchasePending ? "Buying labels..." : "Buy quoted rows from wallet"}
+            </button>
           </div>
+          {result && !walletCanCoverPreview ? <p className="muted">Wallet balance does not cover this batch total. Add funds at <Link href="/wallet">/wallet</Link>.</p> : null}
+          {result && hasPurchaseOutcome ? <p className="muted">This preview has already been used for a batch purchase attempt. Re-preview the CSV before buying again.</p> : null}
           {errorMessage ? <p className="muted">{errorMessage}</p> : null}
           {result ? <p className="muted">{result.note}</p> : null}
         </div>
 
         <div style={secondaryPanelStyle}>
           <p className="eyebrow" style={{ marginBottom: "8px" }}>Batch notes</p>
-          <h2 style={{ marginBottom: "10px" }}>Preview first, deduct balance later</h2>
+          <h2 style={{ marginBottom: "10px" }}>Preview, re-quote, then charge wallet</h2>
           <ul className="list muted" style={{ marginTop: 0 }}>
-            <li>Rows that fail validation stay in the preview with an error instead of breaking the whole upload.</li>
-            <li>This page only previews UPS prices for now. It does not deduct customer credit or buy labels yet.</li>
-            <li>Address line 2 and 3 from your UPS template are folded into the destination address automatically.</li>
+            <li>The server re-quotes every row again during purchase so wallet deductions are based on fresh UPS prices.</li>
+            <li>The batch will not start if any row has a quote error or the wallet balance is below the quoted total.</li>
+            <li>If a row fails after wallet charge, that row is refunded back to wallet and marked failed in the batch results.</li>
           </ul>
         </div>
       </section>
@@ -192,6 +256,8 @@ export function UpsBatchClient({ customerEmail }: UpsBatchClientProps) {
                 <th>Status</th>
                 <th>Carrier cost</th>
                 <th>Customer price</th>
+                <th>Order</th>
+                <th>Tracking</th>
                 <th>Reference</th>
                 <th>Note</th>
               </tr>
@@ -210,8 +276,13 @@ export function UpsBatchClient({ customerEmail }: UpsBatchClientProps) {
                   <td>{row.status}</td>
                   <td>{money(row.carrierCost)}</td>
                   <td>{money(row.customerPrice)}</td>
+                  <td>{row.orderId ? <Link href={`/orders/${row.orderId}`}>{row.orderId}</Link> : "-"}</td>
+                  <td>{row.trackingNumber ?? "-"}</td>
                   <td>{row.reference1 ?? "-"}</td>
-                  <td>{row.message ?? "-"}</td>
+                  <td>
+                    {row.labelUrl ? <a href={row.labelUrl} target="_blank">Open label</a> : null}
+                    {row.message ? <div className="muted">{row.message}</div> : row.labelUrl ? null : "-"}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -221,4 +292,3 @@ export function UpsBatchClient({ customerEmail }: UpsBatchClientProps) {
     </>
   );
 }
-

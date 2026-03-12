@@ -1,5 +1,5 @@
 import { env } from "@/lib/config";
-import type { CarrierRate, ShipmentInput } from "@/lib/domain-types";
+import type { AddressValidationResult, CarrierRate, ShipmentInput, ValidatableAddress } from "@/lib/domain-types";
 
 type UpsSimpleRateCode = "XS" | "S" | "M" | "L" | "XL";
 
@@ -327,5 +327,141 @@ export async function requestUpsShipment(accessToken: string, args: {
   }
 
   return response.json();
+}
+
+type UpsAddressValidationCandidate = {
+  AddressKeyFormat?: {
+    AddressLine?: string | string[];
+    PoliticalDivision2?: string;
+    PoliticalDivision1?: string;
+    PostcodePrimaryLow?: string;
+    PostcodeExtendedLow?: string;
+    CountryCode?: string;
+  };
+  AddressClassification?: {
+    Description?: string;
+    Code?: string;
+  };
+};
+
+type UpsAddressValidationPayload = {
+  XAVResponse?: {
+    Response?: {
+      Alert?: Array<{ Description?: string }> | { Description?: string };
+    };
+    ValidAddressIndicator?: unknown;
+    AmbiguousAddressIndicator?: unknown;
+    NoCandidatesIndicator?: unknown;
+    AddressClassification?: {
+      Description?: string;
+      Code?: string;
+    };
+    Candidate?: UpsAddressValidationCandidate | UpsAddressValidationCandidate[];
+  };
+};
+
+function asArray<T>(value: T | T[] | undefined | null) {
+  if (!value) {
+    return [];
+  }
+
+  return Array.isArray(value) ? value : [value];
+}
+
+function getAddressLines(value: string | string[] | undefined) {
+  const lines = asArray(value).map((line) => String(line).trim()).filter(Boolean);
+  return {
+    line1: lines[0] ?? "",
+    line2: lines[1] ?? undefined
+  };
+}
+
+function normalizeUpsAddressValidation(payload: UpsAddressValidationPayload, requestOption: 1 | 2 | 3): AddressValidationResult {
+  const response = payload.XAVResponse;
+  const alerts = asArray(response?.Response?.Alert)
+    .map((alert) => alert?.Description?.trim())
+    .filter((value): value is string => Boolean(value));
+  const candidates = asArray(response?.Candidate).map((candidate) => {
+    const keyFormat = candidate?.AddressKeyFormat;
+    const lines = getAddressLines(keyFormat?.AddressLine);
+    const primaryPostal = String(keyFormat?.PostcodePrimaryLow ?? "").trim();
+    const extendedPostal = String(keyFormat?.PostcodeExtendedLow ?? "").trim();
+
+    return {
+      line1: lines.line1,
+      line2: lines.line2,
+      city: String(keyFormat?.PoliticalDivision2 ?? "").trim(),
+      state: String(keyFormat?.PoliticalDivision1 ?? "").trim(),
+      postalCode: primaryPostal,
+      postalCodeExtended: extendedPostal || undefined,
+      countryCode: String(keyFormat?.CountryCode ?? "").trim(),
+      classification: candidate?.AddressClassification?.Description?.trim() || candidate?.AddressClassification?.Code?.trim()
+    };
+  }).filter((candidate) => candidate.line1 && candidate.city && candidate.state && candidate.postalCode && candidate.countryCode);
+
+  const status: AddressValidationResult["status"] = response?.ValidAddressIndicator
+    ? "valid"
+    : response?.AmbiguousAddressIndicator
+      ? "ambiguous"
+      : response?.NoCandidatesIndicator
+        ? "invalid"
+        : "error";
+
+  return {
+    mode: "live",
+    requestOption,
+    status,
+    classification: response?.AddressClassification?.Description?.trim() || response?.AddressClassification?.Code?.trim(),
+    alerts,
+    candidateCount: candidates.length,
+    candidates,
+    diagnostic: alerts.join(" || ") || undefined
+  };
+}
+
+export async function requestUpsAddressValidation(
+  accessToken: string,
+  address: ValidatableAddress,
+  requestOption: 1 | 2 | 3 = 3
+) {
+  const body = {
+    XAVRequest: {
+      Request: {
+        RequestOption: String(requestOption),
+        TransactionReference: {
+          CustomerContext: "CALFIE EXPRESS address validation"
+        }
+      },
+      AddressKeyFormat: {
+        ConsigneeName: address.name?.trim() || undefined,
+        BuildingName: address.company?.trim() || undefined,
+        AddressLine: [address.line1, address.line2].filter(Boolean),
+        PoliticalDivision2: address.city.trim(),
+        PoliticalDivision1: address.state.trim(),
+        PostcodePrimaryLow: address.postalCode.trim(),
+        CountryCode: address.countryCode.trim().toUpperCase()
+      }
+    }
+  };
+
+  const response = await fetch(`${env.UPS_API_BASE_URL}/api/addressvalidation/v1/${requestOption}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      transId: `calfie-address-${Date.now()}`,
+      transactionSrc: "CALFIEEXPRESS",
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(body),
+    cache: "no-store"
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`UPS address validation failed with status ${response.status}: ${text}`);
+  }
+
+  const payload = await response.json() as UpsAddressValidationPayload;
+  return normalizeUpsAddressValidation(payload, requestOption);
 }
 

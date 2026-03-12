@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { constructStripeWebhookEvent } from "@/lib/payments/stripe";
 import { fulfillOrderAfterPayment, markOrderPaymentFailed } from "@/lib/orders/fulfillment";
+import { creditWalletFromPaymentIntent } from "@/lib/wallet";
 
 export async function POST(request: Request) {
   const payload = await request.text();
@@ -15,14 +16,31 @@ export async function POST(request: Request) {
 
     if (event.type === "payment_intent.succeeded") {
       const paymentIntent = event.data.object as { id: string; metadata?: Record<string, string> };
-      await fulfillOrderAfterPayment({
-        orderId: paymentIntent.metadata?.calfieOrderId,
-        paymentIntentId: paymentIntent.id
-      });
+
+      if (paymentIntent.metadata?.calfieWalletTopUp === "true") {
+        await creditWalletFromPaymentIntent({
+          paymentIntentId: paymentIntent.id,
+          userId: paymentIntent.metadata?.calfieUserId
+        });
+      } else {
+        await fulfillOrderAfterPayment({
+          orderId: paymentIntent.metadata?.calfieOrderId,
+          paymentIntentId: paymentIntent.id
+        });
+      }
     }
 
     if (event.type === "payment_intent.payment_failed") {
       const paymentIntent = event.data.object as { id: string; last_payment_error?: { message?: string } | null; metadata?: Record<string, string> };
+
+      if (paymentIntent.metadata?.calfieWalletTopUp === "true") {
+        return NextResponse.json({
+          received: true,
+          type: event.type,
+          note: "Stripe webhook verified. Wallet top-up remained unpaid."
+        });
+      }
+
       await markOrderPaymentFailed({
         orderId: paymentIntent.metadata?.calfieOrderId,
         paymentIntentId: paymentIntent.id,

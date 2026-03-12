@@ -7,6 +7,50 @@ import { getFedExAccessToken, requestFedExRates, requestFedExShipment } from "@/
 
 const defaultPricingProfile = demoCustomer.pricingProfile;
 
+export function getFedExPurchaseStatus() {
+  const environment = env.FEDEX_API_BASE_URL.includes("sandbox") ? "sandbox" : "production";
+
+  if (!env.FEDEX_API_KEY || !env.FEDEX_SECRET_KEY || !env.FEDEX_ACCOUNT_NUMBER) {
+    return {
+      enabled: false,
+      environment,
+      diagnostic: "FedEx credentials are incomplete."
+    };
+  }
+
+  if (!env.ALLOW_LIVE_LABEL_PURCHASE) {
+    return {
+      enabled: false,
+      environment,
+      diagnostic: "Global live label purchase flag is disabled."
+    };
+  }
+
+  if (!env.ALLOW_FEDEX_LABEL_PURCHASE) {
+    return {
+      enabled: false,
+      environment,
+      diagnostic: "FedEx purchase flag is disabled."
+    };
+  }
+
+  return {
+    enabled: true,
+    environment,
+    diagnostic: environment === "sandbox"
+      ? "FedEx sandbox purchase is enabled."
+      : "FedEx production purchase is enabled."
+  };
+}
+
+export function getFedExVoidStatus() {
+  return {
+    enabled: false,
+    mode: "manual" as const,
+    diagnostic: "Automatic FedEx void is not implemented yet. Use the manual void/refund workflow after carrier confirmation."
+  };
+}
+
 type FedExRateReply = {
   rateReplyDetails?: Array<{
     serviceType?: string;
@@ -231,8 +275,9 @@ export class FedExAdapter implements CarrierAdapter {
   }
 
   async buyLabel(args: { orderId: string; shipment: ShipmentInput; rate: CarrierRate }): Promise<PurchasedLabel> {
-    if (!env.ALLOW_LIVE_LABEL_PURCHASE) {
-      throw new Error("Live FedEx label purchase is disabled. Set ALLOW_LIVE_LABEL_PURCHASE=true only when you are ready for real carrier charges.");
+    const purchaseStatus = getFedExPurchaseStatus();
+    if (!purchaseStatus.enabled) {
+      throw new Error(`FedEx label purchase is disabled. ${purchaseStatus.diagnostic}`);
     }
 
     if (!env.FEDEX_API_KEY || !env.FEDEX_SECRET_KEY || !env.FEDEX_ACCOUNT_NUMBER) {
@@ -260,10 +305,11 @@ export class FedExAdapter implements CarrierAdapter {
     shipment?: ShipmentInput | null;
     rate?: CarrierRate | null;
   }): Promise<{ accepted: boolean; mode: "live" | "manual" | "demo"; diagnostic?: string }> {
+    const voidStatus = getFedExVoidStatus();
     return {
       accepted: false,
-      mode: "manual",
-      diagnostic: `Automatic FedEx void is not implemented yet. Void shipment ${args.trackingNumber ?? args.orderId} manually in FedEx, then mark the order refunded.`
+      mode: voidStatus.mode,
+      diagnostic: `${voidStatus.diagnostic} Target shipment: ${args.trackingNumber ?? args.orderId}.`
     };
   }
 }

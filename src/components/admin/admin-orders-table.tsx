@@ -2,14 +2,20 @@
 
 import Link from "next/link";
 import { CSSProperties, useState } from "react";
+import { downloadCsv } from "@/components/admin/csv-export";
 
 type AdminOrderRow = {
   id: string;
   user: { email: string };
   status: string;
+  selectedCarrier: "UPS" | "FEDEX";
   selectedService: string;
+  paymentSource: "STRIPE" | "WALLET";
+  quotedCustomerAmount: number;
+  quotedCarrierAmount: number;
   trackingNumber: string | null;
   labelUrl: string | null;
+  createdAt: string;
 };
 
 const inputStyle: CSSProperties = {
@@ -36,6 +42,34 @@ export function AdminOrdersTable({ orders }: { orders: AdminOrderRow[] }) {
     const matchesQuery = normalizedQuery.length === 0 || haystack.includes(normalizedQuery);
     return matchesStatus && matchesQuery;
   });
+
+  function exportFilteredOrders() {
+    downloadCsv("admin-orders.csv", [
+      "order_id",
+      "customer_email",
+      "status",
+      "carrier",
+      "service",
+      "payment_source",
+      "quoted_customer_amount",
+      "quoted_carrier_amount",
+      "tracking_number",
+      "label_status",
+      "created_at"
+    ], filteredOrders.map((order) => ([
+      order.id,
+      order.user.email,
+      order.status,
+      order.selectedCarrier,
+      order.selectedService,
+      order.paymentSource,
+      order.quotedCustomerAmount,
+      order.quotedCarrierAmount,
+      order.trackingNumber,
+      order.labelUrl ? "READY" : "MISSING",
+      order.createdAt
+    ])));
+  }
 
   return (
     <section className="section card">
@@ -64,6 +98,11 @@ export function AdminOrdersTable({ orders }: { orders: AdminOrderRow[] }) {
       <p className="muted" style={{ marginTop: "16px" }}>
         Showing {filteredOrders.length} of {orders.length} orders.
       </p>
+      <div className="actions" style={{ marginTop: "16px" }}>
+        <button className="button" type="button" onClick={exportFilteredOrders} disabled={filteredOrders.length === 0}>
+          Export filtered CSV
+        </button>
+      </div>
 
       <div className="table" style={{ marginTop: "16px" }}>
         <table>
@@ -72,7 +111,9 @@ export function AdminOrdersTable({ orders }: { orders: AdminOrderRow[] }) {
               <th>Order ID</th>
               <th>Customer</th>
               <th>Status</th>
+              <th>Carrier</th>
               <th>Service</th>
+              <th>Amount</th>
               <th>Tracking</th>
               <th>Label</th>
               <th>Open</th>
@@ -84,7 +125,9 @@ export function AdminOrdersTable({ orders }: { orders: AdminOrderRow[] }) {
                 <td>{order.id}</td>
                 <td>{order.user.email}</td>
                 <td>{order.status}</td>
+                <td>{order.selectedCarrier}</td>
                 <td>{order.selectedService}</td>
+                <td>${order.quotedCustomerAmount.toFixed(2)}</td>
                 <td>{order.trackingNumber ?? "Pending"}</td>
                 <td>{order.labelUrl ? "Ready" : "Missing"}</td>
                 <td>
@@ -94,7 +137,7 @@ export function AdminOrdersTable({ orders }: { orders: AdminOrderRow[] }) {
             ))}
             {filteredOrders.length === 0 ? (
               <tr>
-                <td colSpan={7} className="muted">No orders match the current filters.</td>
+                <td colSpan={9} className="muted">No orders match the current filters.</td>
               </tr>
             ) : null}
           </tbody>

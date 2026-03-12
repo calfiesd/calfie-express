@@ -1,12 +1,30 @@
-﻿"use client";
+"use client";
 
 import { CSSProperties, useState } from "react";
+
+type WalletTransactionRow = {
+  id: string;
+  type: "TOP_UP" | "LABEL_PURCHASE" | "VOID_REFUND" | "MANUAL_CREDIT" | "MANUAL_DEBIT";
+  status: "PENDING" | "COMPLETED" | "FAILED";
+  amount: number;
+  balanceAfter: number;
+  description: string;
+  createdAt: string;
+  order?: {
+    id: string;
+    selectedCarrier: "UPS" | "FEDEX";
+    selectedService: string;
+    status: string;
+  } | null;
+};
 
 type CustomerRow = {
   id: string;
   email: string;
   name: string;
   companyName: string | null;
+  walletBalance: number;
+  walletTransactions: WalletTransactionRow[];
   pricingProfile: {
     markupPercent: number;
     flatFee: number;
@@ -16,6 +34,8 @@ type CustomerRow = {
     enabled: boolean;
     allowUps: boolean;
     allowFedex: boolean;
+    allowUpsPurchase: boolean;
+    allowFedexPurchase: boolean;
   } | null;
   _count: {
     orders: number;
@@ -45,10 +65,68 @@ type CreateCustomerForm = {
   enabled: boolean;
   allowUps: boolean;
   allowFedex: boolean;
+  allowUpsPurchase: boolean;
+  allowFedexPurchase: boolean;
+};
+
+type CustomerPayload = {
+  id: string;
+  email: string;
+  name: string;
+  companyName?: string | null;
+  walletBalance?: number | string | null;
+  walletTransactions?: WalletTransactionPayload[] | null;
+  pricingProfile?: PricingProfilePayload | null;
+  _count?: {
+    orders?: number | string | null;
+    quotes?: number | string | null;
+  } | null;
+  orders?: CustomerOrderPayload[] | null;
+};
+
+type WalletTransactionPayload = {
+  id: string;
+  type: WalletTransactionRow["type"];
+  status: WalletTransactionRow["status"];
+  amount: number | string;
+  balanceAfter: number | string;
+  description: string;
+  createdAt: string | Date;
+  order?: WalletTransactionRow["order"];
+};
+
+type PricingProfilePayload = {
+  markupPercent: number | string;
+  flatFee: number | string;
+  minimumProfit: number | string;
+  residentialSurcharge: number | string;
+  signatureSurcharge: number | string;
+  enabled: boolean;
+  allowUps?: boolean;
+  allowFedex?: boolean;
+  allowUpsPurchase?: boolean;
+  allowFedexPurchase?: boolean;
+};
+
+type CustomerOrderPayload = {
+  id: string;
+  createdAt: string | Date;
+  status: string;
 };
 
 function asInput(value: number | undefined) {
   return typeof value === "number" && Number.isFinite(value) ? String(value) : "0";
+}
+
+function money(value: number | undefined) {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return "-";
+  }
+
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD"
+  }).format(value);
 }
 
 const adminButtonBaseStyle: CSSProperties = {
@@ -82,12 +160,32 @@ const adminDisabledPrimaryButtonStyle: CSSProperties = {
   cursor: "not-allowed"
 };
 
-function normalizeCustomer(customer: any): CustomerRow {
+function normalizeCustomer(customer: CustomerPayload): CustomerRow {
   return {
     id: customer.id,
     email: customer.email,
     name: customer.name,
     companyName: customer.companyName ?? null,
+    walletBalance: Number(customer.walletBalance ?? 0),
+    walletTransactions: Array.isArray(customer.walletTransactions)
+      ? customer.walletTransactions.map((transaction: WalletTransactionPayload) => ({
+          id: transaction.id,
+          type: transaction.type,
+          status: transaction.status,
+          amount: Number(transaction.amount),
+          balanceAfter: Number(transaction.balanceAfter),
+          description: transaction.description,
+          createdAt: typeof transaction.createdAt === "string" ? transaction.createdAt : new Date(transaction.createdAt).toISOString(),
+          order: transaction.order
+            ? {
+                id: transaction.order.id,
+                selectedCarrier: transaction.order.selectedCarrier,
+                selectedService: transaction.order.selectedService,
+                status: transaction.order.status
+              }
+            : null
+        }))
+      : [],
     pricingProfile: customer.pricingProfile
       ? {
           markupPercent: Number(customer.pricingProfile.markupPercent),
@@ -97,7 +195,9 @@ function normalizeCustomer(customer: any): CustomerRow {
           signatureSurcharge: Number(customer.pricingProfile.signatureSurcharge),
           enabled: Boolean(customer.pricingProfile.enabled),
           allowUps: customer.pricingProfile.allowUps !== false,
-          allowFedex: customer.pricingProfile.allowFedex !== false
+          allowFedex: customer.pricingProfile.allowFedex !== false,
+          allowUpsPurchase: customer.pricingProfile.allowUpsPurchase !== false,
+          allowFedexPurchase: customer.pricingProfile.allowFedexPurchase !== false
         }
       : null,
     _count: {
@@ -105,7 +205,7 @@ function normalizeCustomer(customer: any): CustomerRow {
       quotes: Number(customer._count?.quotes ?? 0)
     },
     orders: Array.isArray(customer.orders)
-      ? customer.orders.map((order: any) => ({
+      ? customer.orders.map((order: CustomerOrderPayload) => ({
           id: order.id,
           createdAt: typeof order.createdAt === "string" ? order.createdAt : new Date(order.createdAt).toISOString(),
           status: order.status
@@ -120,10 +220,14 @@ export function CustomerManagement({ customers }: Props) {
   const [saving, setSaving] = useState(false);
   const [creating, setCreating] = useState(false);
   const [resettingPassword, setResettingPassword] = useState(false);
+  const [walletAdjusting, setWalletAdjusting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [createMessage, setCreateMessage] = useState<string | null>(null);
   const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
+  const [walletMessage, setWalletMessage] = useState<string | null>(null);
   const [passwordDraft, setPasswordDraft] = useState("");
+  const [walletAmountDraft, setWalletAmountDraft] = useState("25");
+  const [walletNoteDraft, setWalletNoteDraft] = useState("");
   const [createForm, setCreateForm] = useState<CreateCustomerForm>({
     name: "",
     companyName: "",
@@ -136,7 +240,9 @@ export function CustomerManagement({ customers }: Props) {
     signatureSurcharge: "2.5",
     enabled: true,
     allowUps: true,
-    allowFedex: true
+    allowFedex: true,
+    allowUpsPurchase: true,
+    allowFedexPurchase: true
   });
 
   const selected = rows.find((row) => row.id === selectedId) ?? rows[0] ?? null;
@@ -163,14 +269,16 @@ export function CustomerManagement({ customers }: Props) {
           signatureSurcharge: 0,
           enabled: true,
           allowUps: true,
-          allowFedex: true
+          allowFedex: true,
+          allowUpsPurchase: true,
+          allowFedexPurchase: true
         };
 
         return {
           ...row,
           pricingProfile: {
             ...pricingProfile,
-            [field]: ["enabled", "allowUps", "allowFedex"].includes(field) ? Boolean(value) : Number(value)
+            [field]: ["enabled", "allowUps", "allowFedex", "allowUpsPurchase", "allowFedexPurchase"].includes(field) ? Boolean(value) : Number(value)
           }
         };
       })
@@ -207,7 +315,9 @@ export function CustomerManagement({ customers }: Props) {
         signatureSurcharge: selected.pricingProfile?.signatureSurcharge ?? 0,
         enabled: selected.pricingProfile?.enabled ?? true,
         allowUps: selected.pricingProfile?.allowUps ?? true,
-        allowFedex: selected.pricingProfile?.allowFedex ?? true
+        allowFedex: selected.pricingProfile?.allowFedex ?? true,
+        allowUpsPurchase: selected.pricingProfile?.allowUpsPurchase ?? true,
+        allowFedexPurchase: selected.pricingProfile?.allowFedexPurchase ?? true
       })
     });
 
@@ -257,7 +367,9 @@ export function CustomerManagement({ customers }: Props) {
         signatureSurcharge: Number(createForm.signatureSurcharge),
         enabled: createForm.enabled,
         allowUps: createForm.allowUps,
-        allowFedex: createForm.allowFedex
+        allowFedex: createForm.allowFedex,
+        allowUpsPurchase: createForm.allowUpsPurchase,
+        allowFedexPurchase: createForm.allowFedexPurchase
       })
     });
 
@@ -286,7 +398,9 @@ export function CustomerManagement({ customers }: Props) {
       signatureSurcharge: "2.5",
       enabled: true,
       allowUps: true,
-      allowFedex: true
+      allowFedex: true,
+      allowUpsPurchase: true,
+      allowFedexPurchase: true
     });
     setCreateMessage(payload.message ?? "Customer created.");
     setCreating(false);
@@ -332,6 +446,56 @@ export function CustomerManagement({ customers }: Props) {
     setPasswordDraft("");
     setPasswordMessage(payload?.message ?? `Reset password for ${selected.email}.`);
     setResettingPassword(false);
+  }
+
+  async function applyWalletAdjustment(sign: 1 | -1) {
+    if (!selected) {
+      return;
+    }
+
+    setWalletMessage(null);
+    const amount = Number(walletAmountDraft);
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setWalletMessage("Enter a wallet adjustment amount greater than zero.");
+      return;
+    }
+
+    setWalletAdjusting(true);
+
+    const response = await fetch(`/api/admin/customers/${selected.id}/wallet`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        amount: Number((amount * sign).toFixed(2)),
+        note: walletNoteDraft
+      })
+    });
+
+    const payload = await response.json().catch(() => null);
+
+    if (!response.ok || !payload?.wallet) {
+      setWalletMessage(payload?.message ?? `Wallet adjustment failed with status ${response.status}.`);
+      setWalletAdjusting(false);
+      return;
+    }
+
+    setRows((current) => current.map((row) => {
+      if (row.id !== selected.id) {
+        return row;
+      }
+
+      return {
+        ...row,
+        walletBalance: Number(payload.wallet.balance ?? row.walletBalance),
+        walletTransactions: Array.isArray(payload.wallet.transactions) ? payload.wallet.transactions : row.walletTransactions
+      };
+    }));
+    setWalletNoteDraft("");
+    setWalletMessage(payload.message ?? "Wallet updated.");
+    setWalletAdjusting(false);
   }
 
   return (
@@ -399,16 +563,24 @@ export function CustomerManagement({ customers }: Props) {
               <option value="disabled">Disabled</option>
             </select>
           </label>
+          <label className="field">
+            <span>Allow UPS purchase</span>
+            <select value={createForm.allowUpsPurchase ? "enabled" : "disabled"} onChange={(event) => updateCreateForm("allowUpsPurchase", event.target.value === "enabled")}>
+              <option value="enabled">Enabled</option>
+              <option value="disabled">Disabled</option>
+            </select>
+          </label>
+          <label className="field">
+            <span>Allow FedEx purchase</span>
+            <select value={createForm.allowFedexPurchase ? "enabled" : "disabled"} onChange={(event) => updateCreateForm("allowFedexPurchase", event.target.value === "enabled")}>
+              <option value="enabled">Enabled</option>
+              <option value="disabled">Disabled</option>
+            </select>
+          </label>
         </div>
 
         <div className="actions">
-          <button
-            className="button primary"
-            style={creating ? adminDisabledPrimaryButtonStyle : adminPrimaryButtonStyle}
-            type="button"
-            onClick={createCustomer}
-            disabled={creating}
-          >
+          <button className="button primary" style={creating ? adminDisabledPrimaryButtonStyle : adminPrimaryButtonStyle} type="button" onClick={createCustomer} disabled={creating}>
             {creating ? "Creating..." : "Create customer"}
           </button>
         </div>
@@ -420,13 +592,14 @@ export function CustomerManagement({ customers }: Props) {
         <div className="card">
           <p className="eyebrow">Customer management</p>
           <h2>Customer pricing profiles</h2>
-          <p className="muted">Select a customer to adjust markup, fees, surcharges, and carrier access without touching the database directly.</p>
+          <p className="muted">Select a customer to adjust markup, fees, surcharges, carrier access, and wallet balance without touching the database directly.</p>
           <div className="table" style={{ marginTop: "16px" }}>
             <table>
               <thead>
                 <tr>
                   <th>Customer</th>
                   <th>Markup</th>
+                  <th>Wallet</th>
                   <th>Carriers</th>
                   <th>Orders</th>
                   <th>Status</th>
@@ -445,6 +618,7 @@ export function CustomerManagement({ customers }: Props) {
                         <div className="muted">{row.email}</div>
                       </td>
                       <td>{row.pricingProfile ? `${row.pricingProfile.markupPercent}%` : "-"}</td>
+                      <td>{money(row.walletBalance)}</td>
                       <td>{carriers}</td>
                       <td>{row._count.orders}</td>
                       <td>{row.pricingProfile?.enabled === false ? "Disabled" : "Active"}</td>
@@ -511,21 +685,86 @@ export function CustomerManagement({ customers }: Props) {
                     <option value="disabled">Disabled</option>
                   </select>
                 </label>
+                <label className="field">
+                  <span>Allow UPS purchase</span>
+                  <select value={selected.pricingProfile?.allowUpsPurchase === false ? "disabled" : "enabled"} onChange={(event) => updateSelected("allowUpsPurchase", event.target.value === "enabled")}>
+                    <option value="enabled">Enabled</option>
+                    <option value="disabled">Disabled</option>
+                  </select>
+                </label>
+                <label className="field">
+                  <span>Allow FedEx purchase</span>
+                  <select value={selected.pricingProfile?.allowFedexPurchase === false ? "disabled" : "enabled"} onChange={(event) => updateSelected("allowFedexPurchase", event.target.value === "enabled")}>
+                    <option value="enabled">Enabled</option>
+                    <option value="disabled">Disabled</option>
+                  </select>
+                </label>
               </div>
 
               <div className="actions">
-                <button
-                  className="button primary"
-                  style={saving ? adminDisabledPrimaryButtonStyle : adminPrimaryButtonStyle}
-                  type="button"
-                  onClick={saveSelected}
-                  disabled={saving}
-                >
+                <button className="button primary" style={saving ? adminDisabledPrimaryButtonStyle : adminPrimaryButtonStyle} type="button" onClick={saveSelected} disabled={saving}>
                   {saving ? "Saving..." : "Save customer profile"}
                 </button>
               </div>
 
               {message ? <p className="muted">{message}</p> : null}
+
+              <div className="card" style={{ marginTop: "16px", background: "rgba(255, 250, 240, 0.55)" }}>
+                <p className="eyebrow">Wallet operations</p>
+                <h3 style={{ marginTop: 0 }}>Adjust prepaid balance</h3>
+                <p className="muted">Current wallet balance: {money(selected.walletBalance)}</p>
+                <div className="form-grid">
+                  <label className="field">
+                    <span>Adjustment amount</span>
+                    <input type="number" step="0.01" min="0.01" value={walletAmountDraft} onChange={(event) => setWalletAmountDraft(event.target.value)} />
+                  </label>
+                  <label className="field">
+                    <span>Admin note</span>
+                    <input value={walletNoteDraft} onChange={(event) => setWalletNoteDraft(event.target.value)} placeholder="Manual correction, goodwill credit, reconciliation, etc." />
+                  </label>
+                </div>
+                <div className="actions">
+                  <button className="button primary" style={walletAdjusting ? adminDisabledPrimaryButtonStyle : adminPrimaryButtonStyle} type="button" onClick={() => applyWalletAdjustment(1)} disabled={walletAdjusting}>
+                    {walletAdjusting ? "Updating..." : "Credit wallet"}
+                  </button>
+                  <button className="button" type="button" onClick={() => applyWalletAdjustment(-1)} disabled={walletAdjusting}>
+                    Debit wallet
+                  </button>
+                </div>
+                {walletMessage ? <p className="muted">{walletMessage}</p> : null}
+
+                <div className="table" style={{ marginTop: "16px" }}>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>When</th>
+                        <th>Type</th>
+                        <th>Amount</th>
+                        <th>Balance after</th>
+                        <th>Description</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selected.walletTransactions.length ? selected.walletTransactions.map((transaction) => (
+                        <tr key={transaction.id}>
+                          <td>{new Date(transaction.createdAt).toLocaleString()}</td>
+                          <td>{transaction.type}</td>
+                          <td>{money(transaction.amount)}</td>
+                          <td>{money(transaction.balanceAfter)}</td>
+                          <td>
+                            <div>{transaction.description}</div>
+                            {transaction.order ? <div className="muted">Order {transaction.order.id} · {transaction.order.selectedCarrier} {transaction.order.selectedService}</div> : null}
+                          </td>
+                        </tr>
+                      )) : (
+                        <tr>
+                          <td colSpan={5}>No wallet activity yet.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
 
               <div className="card" style={{ marginTop: "16px", background: "rgba(255, 250, 240, 0.55)" }}>
                 <p className="eyebrow">Reset password</p>
@@ -538,13 +777,7 @@ export function CustomerManagement({ customers }: Props) {
                   </label>
                 </div>
                 <div className="actions">
-                  <button
-                    className="button primary"
-                    style={resettingPassword ? adminDisabledPrimaryButtonStyle : adminPrimaryButtonStyle}
-                    type="button"
-                    onClick={resetCustomerPassword}
-                    disabled={resettingPassword}
-                  >
+                  <button className="button primary" style={resettingPassword ? adminDisabledPrimaryButtonStyle : adminPrimaryButtonStyle} type="button" onClick={resetCustomerPassword} disabled={resettingPassword}>
                     {resettingPassword ? "Resetting..." : "Reset customer password"}
                   </button>
                 </div>
@@ -563,6 +796,10 @@ export function CustomerManagement({ customers }: Props) {
                       <td>{selected._count.orders}</td>
                     </tr>
                     <tr>
+                      <th>Wallet balance</th>
+                      <td>{money(selected.walletBalance)}</td>
+                    </tr>
+                    <tr>
                       <th>Latest order</th>
                       <td>{selected.orders[0] ? `${selected.orders[0].status} (${new Date(selected.orders[0].createdAt).toLocaleDateString()})` : "No orders yet"}</td>
                     </tr>
@@ -578,3 +815,4 @@ export function CustomerManagement({ customers }: Props) {
     </section>
   );
 }
+

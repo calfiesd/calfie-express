@@ -3,6 +3,7 @@ import { UpsAdapter } from "@/lib/carriers/ups";
 import { FedExAdapter } from "@/lib/carriers/fedex";
 import type { CarrierAdapter } from "@/lib/carriers/base";
 import type { CarrierRate, PurchasedLabel, ShipmentInput } from "@/lib/domain-types";
+import { persistLabelAsset } from "@/lib/labels";
 import { sendOrderEmail } from "@/lib/notifications/email";
 
 type FulfillmentResult = {
@@ -66,16 +67,14 @@ async function sendPurchaseFailureEmail(args: {
   }).catch(() => null);
 }
 
-export async function fulfillOrderAfterPayment(args: {
-  orderId?: string;
-  paymentIntentId: string;
+async function fulfillStoredOrder(args: {
+  orderLookup: { id: string } | { stripePaymentIntentId: string };
+  paymentIntentId?: string;
 }) : Promise<FulfillmentResult> {
   const storedOrder = await prisma.order.findFirst({
-    where: args.orderId
-      ? { id: args.orderId }
-      : { stripePaymentIntentId: args.paymentIntentId },
+    where: args.orderLookup,
     include: {
-      user: true
+      user: { include: { pricingProfile: true } }
     }
   });
 
@@ -83,7 +82,7 @@ export async function fulfillOrderAfterPayment(args: {
     return {
       note: "Payment succeeded, but no matching order was found.",
       purchased: null,
-      diagnostic: `No order matches payment intent ${args.paymentIntentId}.`
+      diagnostic: args.paymentIntentId ? `No order matches payment intent ${args.paymentIntentId}.` : "No matching order was found."
     };
   }
 
@@ -104,7 +103,7 @@ export async function fulfillOrderAfterPayment(args: {
       where: { id: storedOrder.id },
       data: {
         status: "PAID",
-        stripePaymentIntentId: args.paymentIntentId
+        ...(args.paymentIntentId ? { stripePaymentIntentId: args.paymentIntentId } : {})
       }
     }).catch(() => null);
 
@@ -116,21 +115,50 @@ export async function fulfillOrderAfterPayment(args: {
     };
   }
 
+  if (rate.carrier === "UPS" && storedOrder.user.pricingProfile?.allowUpsPurchase === false) {
+    return {
+      note: "Payment verified, but UPS label purchase is disabled for this customer.",
+      purchased: null,
+      diagnostic: "UPS purchase is disabled by the customer purchase-access profile.",
+      orderId: storedOrder.id
+    };
+  }
+
+  if (rate.carrier === "FEDEX" && storedOrder.user.pricingProfile?.allowFedexPurchase === false) {
+    return {
+      note: "Payment verified, but FEDEX label purchase is disabled for this customer.",
+      purchased: null,
+      diagnostic: "FedEx purchase is disabled by the customer purchase-access profile.",
+      orderId: storedOrder.id
+    };
+  }
+
   try {
     const purchased = await getCarrierAdapter(rate.carrier).buyLabel({
       orderId: storedOrder.id,
       shipment,
       rate
     });
+    const storedLabelUrl = await persistLabelAsset({
+      orderId: storedOrder.id,
+      carrier: purchased.carrier,
+      serviceName: purchased.serviceName,
+      trackingNumber: purchased.trackingNumber,
+      labelUrl: purchased.labelUrl
+    });
+    const storedPurchase = {
+      ...purchased,
+      labelUrl: storedLabelUrl
+    };
 
     await prisma.order.update({
       where: { id: storedOrder.id },
       data: {
         status: "LABEL_PURCHASED",
-        stripePaymentIntentId: args.paymentIntentId,
-        actualCarrierAmount: purchased.carrierCharge,
-        trackingNumber: purchased.trackingNumber,
-        labelUrl: purchased.labelUrl
+        ...(args.paymentIntentId ? { stripePaymentIntentId: args.paymentIntentId } : {}),
+        actualCarrierAmount: storedPurchase.carrierCharge,
+        trackingNumber: storedPurchase.trackingNumber,
+        labelUrl: storedPurchase.labelUrl
       }
     });
 
@@ -138,14 +166,14 @@ export async function fulfillOrderAfterPayment(args: {
       email: storedOrder.user.email,
       orderId: storedOrder.id,
       amount: Number(storedOrder.quotedCustomerAmount),
-      trackingNumber: purchased.trackingNumber,
-      labelUrl: purchased.labelUrl,
+      trackingNumber: storedPurchase.trackingNumber,
+      labelUrl: storedPurchase.labelUrl,
       carrier: rate.carrier
     });
 
     return {
       note: `Payment verified and ${rate.carrier} label purchased successfully. Order saved to PostgreSQL.`,
-      purchased,
+      purchased: storedPurchase,
       orderId: storedOrder.id
     };
   } catch (error) {
@@ -155,7 +183,7 @@ export async function fulfillOrderAfterPayment(args: {
       where: { id: storedOrder.id },
       data: {
         status: "PAID",
-        stripePaymentIntentId: args.paymentIntentId
+        ...(args.paymentIntentId ? { stripePaymentIntentId: args.paymentIntentId } : {})
       }
     }).catch(() => null);
 
@@ -175,6 +203,24 @@ export async function fulfillOrderAfterPayment(args: {
   }
 }
 
+export async function fulfillOrderAfterPayment(args: {
+  orderId?: string;
+  paymentIntentId: string;
+}) : Promise<FulfillmentResult> {
+  return fulfillStoredOrder({
+    orderLookup: args.orderId ? { id: args.orderId } : { stripePaymentIntentId: args.paymentIntentId },
+    paymentIntentId: args.paymentIntentId
+  });
+}
+
+export async function fulfillOrderFromWallet(args: {
+  orderId: string;
+}) : Promise<FulfillmentResult> {
+  return fulfillStoredOrder({
+    orderLookup: { id: args.orderId }
+  });
+}
+
 export async function markOrderPaymentFailed(args: {
   paymentIntentId: string;
   orderId?: string;
@@ -185,7 +231,7 @@ export async function markOrderPaymentFailed(args: {
       ? { id: args.orderId }
       : { stripePaymentIntentId: args.paymentIntentId },
     include: {
-      user: true
+      user: { include: { pricingProfile: true } }
     }
   });
 

@@ -12,10 +12,74 @@ export type UpsRateResult = {
   debugAccounts?: UpsDebugAccount[];
 };
 
+type UpsRatedShipment = {
+  Service?: { Code?: string };
+  NegotiatedRateCharges?: { TotalCharge?: { MonetaryValue?: string | number } };
+  TotalCharges?: { MonetaryValue?: string | number };
+  FRSShipmentData?: { TransportationCharges?: { NetCharge?: { MonetaryValue?: string | number } } };
+  GuaranteedDelivery?: { BusinessDaysInTransit?: string | number };
+};
+
+type UpsRatesPayload = {
+  RateResponse?: {
+    RatedShipment?: UpsRatedShipment | UpsRatedShipment[];
+  };
+};
+
+type UpsShipmentPackageResult = {
+  TrackingNumber?: string;
+  ShippingLabel?: { GraphicImage?: string };
+};
+
+type UpsShipmentPayload = {
+  ShipmentResponse?: {
+    ShipmentResults?: {
+      ShipmentIdentificationNumber?: string;
+      PackageResults?: UpsShipmentPackageResult | UpsShipmentPackageResult[];
+    };
+  };
+};
+
 const defaultPricingProfile = demoCustomer.pricingProfile;
 
 function getConfiguredUpsAccounts() {
   return env.UPS_ACCOUNT_NUMBER ? [env.UPS_ACCOUNT_NUMBER] : [];
+}
+
+export function getUpsPurchaseStatus() {
+  const environment = env.UPS_API_BASE_URL.includes("onlinetools.ups.com") ? "production" : "sandbox";
+
+  if (!env.UPS_CLIENT_ID || !env.UPS_CLIENT_SECRET || !env.UPS_ACCOUNT_NUMBER) {
+    return {
+      enabled: false,
+      environment,
+      diagnostic: "UPS credentials are incomplete."
+    };
+  }
+
+  if (!env.ALLOW_LIVE_LABEL_PURCHASE) {
+    return {
+      enabled: false,
+      environment,
+      diagnostic: "Global live label purchase flag is disabled."
+    };
+  }
+
+  return {
+    enabled: true,
+    environment,
+    diagnostic: environment === "production"
+      ? "UPS production purchase is enabled."
+      : "UPS sandbox purchase is enabled."
+  };
+}
+
+export function getUpsVoidStatus() {
+  return {
+    enabled: false,
+    mode: "manual" as const,
+    diagnostic: "Automatic UPS void is not implemented yet. Use the manual void/refund workflow after carrier confirmation."
+  };
 }
 
 function buildDemoRates(input: ShipmentInput, pricingProfile: PricingProfile = defaultPricingProfile): CarrierRate[] {
@@ -66,7 +130,7 @@ function serviceNameFromCode(serviceCode: string) {
   return map[serviceCode] ?? `UPS ${serviceCode}`;
 }
 
-function parseUpsCharge(shipment: any) {
+function parseUpsCharge(shipment: UpsRatedShipment) {
   const negotiatedTotal = shipment?.NegotiatedRateCharges?.TotalCharge?.MonetaryValue;
   const publishedTotal = shipment?.TotalCharges?.MonetaryValue;
   const freightNetCharge = shipment?.FRSShipmentData?.TransportationCharges?.NetCharge?.MonetaryValue;
@@ -82,7 +146,7 @@ function parseUpsCharge(shipment: any) {
   };
 }
 
-function buildDebugRate(shipment: any): UpsDebugRate {
+function buildDebugRate(shipment: UpsRatedShipment): UpsDebugRate {
   const parsedCharge = parseUpsCharge(shipment);
   const serviceCode = String(shipment?.Service?.Code ?? "ups_service");
 
@@ -97,11 +161,11 @@ function buildDebugRate(shipment: any): UpsDebugRate {
   };
 }
 
-function normalizeUpsRates(payload: any, input: ShipmentInput, pricingProfile: PricingProfile, accountNumber: string): CarrierRate[] {
+function normalizeUpsRates(payload: UpsRatesPayload, input: ShipmentInput, pricingProfile: PricingProfile, accountNumber: string): CarrierRate[] {
   const ratedShipment = payload?.RateResponse?.RatedShipment;
   const shipments = Array.isArray(ratedShipment) ? ratedShipment : ratedShipment ? [ratedShipment] : [];
 
-  return shipments.map((shipment: any) => {
+  return shipments.map((shipment) => {
     const parsedCharge = parseUpsCharge(shipment);
     const serviceCode = String(shipment?.Service?.Code ?? "ups_service");
 
@@ -119,14 +183,14 @@ function normalizeUpsRates(payload: any, input: ShipmentInput, pricingProfile: P
   });
 }
 
-function buildDebugAccount(accountNumber: string, payload: any): UpsDebugAccount {
+function buildDebugAccount(accountNumber: string, payload: UpsRatesPayload): UpsDebugAccount {
   const ratedShipment = payload?.RateResponse?.RatedShipment;
   const shipments = Array.isArray(ratedShipment) ? ratedShipment : ratedShipment ? [ratedShipment] : [];
 
   return {
     accountNumber,
     status: "success",
-    rates: shipments.map((shipment: any) => buildDebugRate(shipment))
+    rates: shipments.map((shipment) => buildDebugRate(shipment))
   };
 }
 
@@ -143,7 +207,7 @@ function chooseLowestRatesByService(rates: CarrierRate[]) {
   return Array.from(bestByService.values()).sort((left, right) => left.customerPrice - right.customerPrice);
 }
 
-function normalizeUpsShipment(payload: any, fallbackRate: CarrierRate): PurchasedLabel {
+function normalizeUpsShipment(payload: UpsShipmentPayload, fallbackRate: CarrierRate): PurchasedLabel {
   const shipmentResults = payload?.ShipmentResponse?.ShipmentResults;
   const packageResults = shipmentResults?.PackageResults;
   const firstPackage = Array.isArray(packageResults) ? packageResults[0] : packageResults;
@@ -231,8 +295,9 @@ export class UpsAdapter implements CarrierAdapter {
   }
 
   async buyLabel(args: { orderId: string; shipment: ShipmentInput; rate: CarrierRate }): Promise<PurchasedLabel> {
-    if (!env.ALLOW_LIVE_LABEL_PURCHASE) {
-      throw new Error("Live UPS label purchase is disabled. Set ALLOW_LIVE_LABEL_PURCHASE=true only when you are ready for real carrier charges.");
+    const purchaseStatus = getUpsPurchaseStatus();
+    if (!purchaseStatus.enabled) {
+      throw new Error(`UPS label purchase is disabled. ${purchaseStatus.diagnostic}`);
     }
 
     const accountNumber = env.UPS_ACCOUNT_NUMBER;
@@ -261,10 +326,12 @@ export class UpsAdapter implements CarrierAdapter {
     shipment?: ShipmentInput | null;
     rate?: CarrierRate | null;
   }): Promise<{ accepted: boolean; mode: "live" | "manual" | "demo"; diagnostic?: string }> {
+    const voidStatus = getUpsVoidStatus();
     return {
       accepted: false,
-      mode: "manual",
-      diagnostic: `Automatic UPS void is not implemented yet. Void shipment ${args.trackingNumber ?? args.orderId} manually in UPS, then mark the order refunded.`
+      mode: voidStatus.mode,
+      diagnostic: `${voidStatus.diagnostic} Target shipment: ${args.trackingNumber ?? args.orderId}.`
     };
   }
 }
+

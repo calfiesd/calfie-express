@@ -1,4 +1,4 @@
-﻿export type CarrierCode = "UPS" | "FEDEX";
+export type CarrierCode = "UPS" | "FEDEX";
 
 export type PricingProfile = {
   userId: string;
@@ -75,6 +75,7 @@ export type FedExQuoteStatus = {
 };
 
 export type UpsQuoteResponse = {
+  quoteId?: string;
   shipment: ShipmentInput;
   rates: CarrierRate[];
   source: "live" | "fallback";
@@ -84,6 +85,7 @@ export type UpsQuoteResponse = {
   note: string;
 };
 
+export type UpsBatchRowStatus = "quoted" | "error" | "purchased" | "failed";
 
 export type UpsBatchPreviewRow = {
   rowNumber: number;
@@ -97,8 +99,11 @@ export type UpsBatchPreviewRow = {
   accountLabel?: string;
   carrierCost?: number;
   customerPrice?: number;
-  status: "quoted" | "error";
+  status: UpsBatchRowStatus;
   message?: string;
+  orderId?: string;
+  trackingNumber?: string;
+  labelUrl?: string;
 };
 
 export type UpsBatchPreviewResponse = {
@@ -107,11 +112,14 @@ export type UpsBatchPreviewResponse = {
     rowCount: number;
     quotedCount: number;
     errorCount: number;
+    purchasedCount?: number;
+    failedCount?: number;
     carrierCostTotal: number;
     customerPriceTotal: number;
   };
   note: string;
 };
+
 export type OrderDraft = {
   id: string;
   shipment: ShipmentInput;
@@ -124,6 +132,15 @@ export type OrderDraft = {
 
 export type CheckoutDraft = {
   orderId: string;
+  amount: number;
+  currency: "usd";
+  paymentMode: "live" | "demo";
+  clientSecret: string;
+  paymentIntentId: string;
+  status: "requires_payment_method" | "requires_confirmation" | "demo_ready";
+};
+
+export type WalletTopUpDraft = {
   amount: number;
   currency: "usd";
   paymentMode: "live" | "demo";
@@ -149,4 +166,86 @@ export type CustomerAccountSummary = {
   pricingProfile: PricingProfile;
 };
 
+export type WalletTransactionSummary = {
+  id: string;
+  type: "TOP_UP" | "LABEL_PURCHASE" | "VOID_REFUND" | "MANUAL_CREDIT" | "MANUAL_DEBIT";
+  status: "PENDING" | "COMPLETED" | "FAILED";
+  amount: number;
+  balanceBefore: number;
+  balanceAfter: number;
+  description: string;
+  stripePaymentIntentId?: string | null;
+  createdAt: string;
+  order?: {
+    id: string;
+    selectedCarrier: CarrierCode;
+    selectedService: string;
+    status: string;
+  } | null;
+};
 
+export type WalletSummary = {
+  balance: number;
+  transactions: WalletTransactionSummary[];
+};
+
+export type PaymentMethodSummary = {
+  mode: "live" | "demo" | "misconfigured";
+  customerId?: string | null;
+  paymentMethodId?: string | null;
+  brand?: string | null;
+  last4?: string | null;
+  expMonth?: number | null;
+  expYear?: number | null;
+  funding?: string | null;
+};
+
+export type ValidatableAddress = {
+  name?: string;
+  company?: string;
+  line1: string;
+  line2?: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  countryCode: string;
+};
+
+export type AddressValidationCandidate = {
+  line1: string;
+  line2?: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  postalCodeExtended?: string;
+  countryCode: string;
+  classification?: string;
+};
+
+export type AddressValidationResult = {
+  mode: "live" | "fallback";
+  requestOption: 1 | 2 | 3;
+  status: "valid" | "ambiguous" | "invalid" | "error";
+  classification?: string;
+  alerts: string[];
+  candidateCount: number;
+  candidates: AddressValidationCandidate[];
+  diagnostic?: string;
+};
+
+export type SavedAddressSummary = {
+  id: string;
+  label: string;
+  name: string;
+  company?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  line1: string;
+  line2?: string | null;
+  city: string;
+  state: string;
+  postalCode: string;
+  countryCode: string;
+  isDefault: boolean;
+  createdAt: string;
+};

@@ -6,18 +6,24 @@ import { DashboardClient } from "@/components/dashboard/dashboard-client";
 import { demoShipment } from "@/lib/mock-data";
 import { UpsAdapter } from "@/lib/carriers/ups";
 import { FedExAdapter } from "@/lib/carriers/fedex";
+import { getFedExPurchaseStatus } from "@/lib/carriers/fedex";
 import { getStripeStatus } from "@/lib/payments/stripe";
 import { env } from "@/lib/config";
 import { requireUser } from "@/lib/auth/session";
+import { getSavedAddresses } from "@/lib/addresses";
+import { getCustomerAdjustmentSummary } from "@/lib/adjustments";
+import { getWalletSummary } from "@/lib/wallet";
+import { getStoredQuoteById } from "@/lib/quotes";
 import type { UpsDebugAccount, UpsQuoteResponse } from "@/lib/domain-types";
 
-export default async function DashboardPage() {
+export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ quoteId?: string }> }) {
   const user = await requireUser();
 
   if (!user?.pricingProfile) {
     redirect("/login");
   }
 
+  const { quoteId } = await searchParams;
   const pricingSummary = {
     markupPercent: Number(user.pricingProfile.markupPercent),
     flatFee: Number(user.pricingProfile.flatFee),
@@ -27,7 +33,7 @@ export default async function DashboardPage() {
     userId: user.id
   };
 
-  const initialShipment = {
+  const defaultShipment = {
     ...demoShipment,
     userId: user.id,
     shipFrom: {
@@ -37,23 +43,34 @@ export default async function DashboardPage() {
       email: user.email
     }
   };
+  const storedQuote = quoteId ? await getStoredQuoteById(quoteId, user.id) : null;
+  const initialShipment = (storedQuote?.shipmentJson as typeof defaultShipment | null) ?? defaultShipment;
 
-  const ups = await new UpsAdapter().getRatesWithDiagnostics(initialShipment, pricingSummary);
-  const fedexRates = await new FedExAdapter().getRates(initialShipment, pricingSummary);
-  const stripe = getStripeStatus();
-  const initialRates = [...ups.rates, ...fedexRates].sort((left, right) => left.customerPrice - right.customerPrice);
-  const fedexDiagnostic = fedexRates.length > 0
-    ? "FedEx comparison is enabled with placeholder account-rate logic until live FedEx API credentials are connected."
-    : "FedEx comparison returned no rates.";
+  const [ups, fedexResult, wallet, savedAddresses, adjustmentSummary, stripe] = await Promise.all([
+    new UpsAdapter().getRatesWithDiagnostics(initialShipment, pricingSummary),
+    new FedExAdapter().getRatesWithDiagnostics(initialShipment, pricingSummary),
+    getWalletSummary(user.id),
+    getSavedAddresses(user.id),
+    getCustomerAdjustmentSummary(user.id),
+    Promise.resolve(getStripeStatus())
+  ]);
+  const fedexPurchaseStatus = getFedExPurchaseStatus();
+  const initialRates = [...ups.rates, ...fedexResult.rates].sort((left, right) => left.customerPrice - right.customerPrice);
   const upsDebugAccounts = (ups as { debugAccounts?: UpsDebugAccount[] }).debugAccounts;
 
   const initialQuote = {
+    quoteId: storedQuote?.id,
     shipment: initialShipment,
-    rates: initialRates,
+    rates: storedQuote?.ratesJson && Array.isArray(storedQuote.ratesJson)
+      ? (storedQuote.ratesJson as UpsQuoteResponse["rates"])
+      : initialRates,
     source: ups.mode,
-    diagnostic: [ups.diagnostic, fedexDiagnostic].filter(Boolean).join(" || "),
+    diagnostic: storedQuote
+      ? "Loaded from stored quote history."
+      : [ups.diagnostic, fedexResult.status.diagnostic].filter(Boolean).join(" || "),
     debugAccounts: upsDebugAccounts,
-    note: "Initial dashboard comparison load"
+    fedexStatus: fedexResult.status,
+    note: storedQuote ? "Loaded stored quote from quote history." : "Initial dashboard comparison load"
   } as UpsQuoteResponse;
 
   return (
@@ -70,6 +87,10 @@ export default async function DashboardPage() {
           minimumProfit: pricingSummary.minimumProfit
         }}
         customerEmail={user.email}
+        initialWalletBalance={wallet?.balance ?? Number(user.walletBalance ?? 0)}
+        initialSavedAddresses={savedAddresses}
+        initialAdjustmentSummary={adjustmentSummary}
+        fedexPurchaseStatus={fedexPurchaseStatus}
       />
     </>
   );

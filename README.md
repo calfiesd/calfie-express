@@ -1,68 +1,118 @@
-# CALFIE EXPRESS
+﻿# CALFIE EXPRESS
 
-This workspace now contains two layers:
+This repository contains:
 
-- A static prototype in `index.html`, `styles.css`, and `app.js`
-- A production app in `src/` for a Next.js + Prisma + Stripe shipping platform
+- a legacy static prototype in `index.html`, `styles.css`, and `app.js`
+- the active product in `src/` as a Next.js + Prisma + Stripe shipping portal
 
-## Current platform status
+## Current product state
 
-- Brand: CALFIE EXPRESS
-- Guest checkout: disabled
-- Real customer accounts: enabled
-- Different customers can have different markup percentages and pricing rules
-- Saved payment methods are supported through Stripe
-- Primary live carrier: UPS (`0720R3` path)
-- FedEx: live rating scaffold wired, purchase still demo/stub until shipping API is connected
-- UPS OAuth, rating, and shipping: wired
-- Stripe checkout + webhooks: wired
-- PostgreSQL persistence: wired
-- Email notifications: supported when Postmark env vars are configured
+The app is now a working multi-surface shipping portal with:
+
+- customer registration and login
+- per-customer pricing profiles
+- per-customer UPS and FedEx quote access
+- per-customer UPS and FedEx purchase access
+- live UPS quotes and live UPS label purchase
+- FedEx live quote support
+- FedEx purchase path behind the live-purchase safety gate
+- wallet balance, top-up, wallet checkout, refunds, and admin wallet adjustments
+- saved recipient address book
+- UPS batch CSV preview, purchase, duplicate blocking, retry flow, and batch history
+- customer quote history with dashboard reload
+- customer order history and order detail
+- customer payment settings for saved default cards
+- customer account settings
+- customer carrier-adjustment history
+- admin customer management
+- admin order filters
+- admin batch history
+- admin carrier-adjustment workflow
+- Stripe checkout, setup intents, and webhooks
+- Postmark-backed email notifications when configured
+
+## Verified local checks
+
+The current app has been verified locally with:
+
+- `npm run lint`
+- `npx tsc --noEmit`
+- `npm run build`
+
+Note: production build currently uses `next build --webpack` because Turbopack hit a Windows + Prisma junction issue in this workspace.
 
 ## Important local files
 
-- `.env.local`: your real local secrets and config
-- `.env.local.example`: clean local template copy
+- `.env.local`: real local secrets and config
+- `.env.local.example`: clean local template
 - `.env.example`: generic environment template
-- `docs/local-development.md`: exact local setup steps
-- `docs/deployment-vercel.md`: recommended production deployment path
-- `docs/ups-phase1-plan.md`: UPS-only rollout plan
+- `docs/local-development.md`: local setup and smoke-test notes
+- `docs/deployment-vercel.md`: deployment checklist
+- `prisma/schema.prisma`: current database schema
 
-## Production app highlights
+## Core app areas
 
-- `src/app/login/page.tsx`: customer registration and login
-- `src/app/dashboard/page.tsx`: customer shipping dashboard with UPS + FedEx comparison
-- `src/app/orders/page.tsx`: customer order history
-- `src/app/admin/orders/page.tsx`: admin order list
-- `src/app/api/quotes/route.ts`: carrier quote endpoint
+- `src/app/login/page.tsx`: customer auth
+- `src/app/dashboard/page.tsx`: main shipping dashboard
+- `src/app/wallet/page.tsx`: wallet funding and ledger
+- `src/app/payments/page.tsx`: saved-card settings
+- `src/app/addresses/page.tsx`: address book
+- `src/app/quotes/page.tsx`: quote history
+- `src/app/orders/page.tsx`: order history
+- `src/app/adjustments/page.tsx`: customer adjustment history
+- `src/app/batch/ups/page.tsx`: UPS batch upload
+- `src/app/batch/history/page.tsx`: customer batch history
+- `src/app/admin/page.tsx`: admin overview
+- `src/app/admin/customers/page.tsx`: admin customer management
+- `src/app/admin/orders/page.tsx`: admin orders
+- `src/app/admin/batches/page.tsx`: admin batches
+- `src/app/admin/adjustments/page.tsx`: admin adjustment queue
+
+## Key backend areas
+
+- `src/app/api/quotes/route.ts`: carrier quote creation + quote persistence
 - `src/app/api/orders/route.ts`: order draft creation
-- `src/app/api/orders/complete/route.ts`: browser-driven payment completion
-- `src/app/api/webhooks/stripe/route.ts`: Stripe webhook fulfillment
-- `src/lib/orders/fulfillment.ts`: shared post-payment fulfillment logic
-- `src/lib/carriers/ups.ts`: UPS adapter for rating and shipment purchase
-- `src/lib/carriers/fedex.ts`: FedEx adapter for live-rate scaffold + fallback comparison pricing
-- `src/lib/fedex/client.ts`: FedEx OAuth and rate request helper
-- `src/lib/payments/stripe.ts`: Stripe customer, payment intent, and webhook helpers
-- `prisma/schema.prisma`: users, pricing profiles, quotes, orders, and carrier adjustments
+- `src/app/api/orders/complete/route.ts`: checkout completion
+- `src/app/api/wallet/*`: wallet flows
+- `src/app/api/admin/adjustments/*`: admin adjustment actions
+- `src/app/api/payments/*`: Stripe payment/setup routes
+- `src/app/api/webhooks/stripe/route.ts`: Stripe webhook processing
+- `src/lib/orders/fulfillment.ts`: shared post-payment fulfillment
+- `src/lib/payments/stripe.ts`: Stripe customer/payment helpers
+- `src/lib/wallet.ts`: wallet ledger logic
+- `src/lib/adjustments.ts`: carrier adjustment workflow
+- `src/lib/quotes.ts`: quote history helpers
+- `src/lib/batch-purchases.ts`: batch history helpers
 
-## Deployment prep
+## Environment notes
 
-- Node.js target: `20.x`
-- Next.js dependency is prepared for the Next 16 deployment path
-- ESLint uses the standard CLI instead of `next lint`
-- Prisma client generation runs in `postinstall`
-- Use Vercel + Neon for the simplest first production deployment
+Primary variables in active use include:
 
-## FedEx envs
-
+- `DATABASE_URL`
+- `NEXT_PUBLIC_APP_URL`
+- `UPS_CLIENT_ID`
+- `UPS_CLIENT_SECRET`
+- `UPS_ACCOUNT_NUMBER`
+- `UPS_ACCOUNT_NUMBERS`
+- `UPS_API_BASE_URL`
+- `STRIPE_SECRET_KEY`
+- `STRIPE_PUBLISHABLE_KEY`
+- `STRIPE_WEBHOOK_SECRET`
+- `ALLOW_LIVE_LABEL_PURCHASE`
+- `ALLOW_FEDEX_LABEL_PURCHASE`
 - `FEDEX_API_KEY`
 - `FEDEX_SECRET_KEY`
 - `FEDEX_ACCOUNT_NUMBER`
-- optional if your account setup requires it:
-  - `FEDEX_CHILD_KEY`
-  - `FEDEX_CHILD_SECRET`
 - `FEDEX_API_BASE_URL`
-  - sandbox: `https://apis-sandbox.fedex.com`
-  - production: `https://apis.fedex.com`
+- `POSTMARK_SERVER_TOKEN`
+- `POSTMARK_FROM_EMAIL`
 
-See [docs/deployment-vercel.md](/C:/Users/towei/OneDrive/文档/太阳�?website/docs/deployment-vercel.md) for the exact production checklist.
+## Still realistically left
+
+The biggest remaining production-grade tasks are:
+
+- durable label storage instead of carrier/demo URLs only
+- final FedEx live purchase rollout and production validation
+- deployment hardening and production runbook cleanup
+- better operational reporting and reconciliations
+- docs cleanup beyond the core setup files

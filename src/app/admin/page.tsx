@@ -1,9 +1,11 @@
-﻿import Link from "next/link";
+import Link from "next/link";
+import type { Route } from "next";
 import { SiteNav } from "@/components/site-nav";
 import { requireAdmin } from "@/lib/auth/session";
 import { getAdminCustomers } from "@/lib/customers";
 import { getAllStoredOrders } from "@/lib/orders";
 import { prisma } from "@/lib/db";
+import { getFedExPurchaseStatus } from "@/lib/carriers/fedex";
 import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
@@ -15,15 +17,17 @@ export default async function AdminPage() {
     redirect("/login");
   }
 
-  const [customers, orders, pendingAdjustments] = await Promise.all([
+  const [customers, orders, pendingAdjustments, batchCount] = await Promise.all([
     getAdminCustomers(),
     getAllStoredOrders(),
     prisma.carrierAdjustment.findMany({
       where: {
         status: "PENDING"
       }
-    })
+    }),
+    prisma.batchPurchase.count()
   ]);
+  const fedexPurchaseStatus = getFedExPurchaseStatus();
 
   const pendingExposure = pendingAdjustments.reduce((sum, item) => sum + Number(item.amountToCharge), 0);
 
@@ -35,11 +39,16 @@ export default async function AdminPage() {
           <p className="eyebrow">Admin operations</p>
           <h1>Pricing, carrier, and adjustment controls</h1>
           <p className="copy">
-            Admins can assign per-customer markup percentages, monitor label profitability, and recover carrier rebills through saved payment methods.
+            Admins can assign per-customer markup percentages, monitor label profitability, recover carrier rebills, and audit batch purchase activity across customers.
           </p>
           <div className="actions">
             <Link className="button primary" href="/admin/customers">Open customer management</Link>
             <Link className="button" href="/admin/orders">Review all orders</Link>
+            <Link className="button" href={"/admin/adjustments" as Route}>Review adjustments</Link>
+            <Link className="button" href="/admin/batches">Review batch history</Link>
+            <Link className="button" href="/admin/carriers">Review carrier readiness</Link>
+            <Link className="button" href="/admin/launch">Review launch readiness</Link>
+            <Link className="button" href="/admin/reconciliation">Open reconciliation</Link>
           </div>
         </div>
         <div className="grid-2">
@@ -70,12 +79,11 @@ export default async function AdminPage() {
         </div>
 
         <div className="card">
-          <h2>Credential checklist</h2>
+          <h2>Batch activity</h2>
+          <p className="muted">{batchCount} UPS batch runs are currently stored.</p>
           <ul className="list muted">
-            <li>UPS live quote and purchase connected</li>
-            <li>FedEx live quote connected</li>
-            <li>FedEx purchase path ready behind safety switch</li>
-            <li>Stripe secret and webhook signing secret connected</li>
+            <li>Review duplicate fingerprints and retry lineage in admin batch history.</li>
+            <li>Use batch history to answer support questions without customer impersonation.</li>
           </ul>
         </div>
 
@@ -84,7 +92,7 @@ export default async function AdminPage() {
           <ul className="list muted">
             <li>Terms must authorize post-shipment adjustment charges.</li>
             <li>Customers should save a default payment method before first label purchase.</li>
-            <li>Keep FedEx live purchase behind the safety switch until production validation is complete.</li>
+            <li>FedEx purchase status: {fedexPurchaseStatus.diagnostic}</li>
           </ul>
         </div>
       </section>

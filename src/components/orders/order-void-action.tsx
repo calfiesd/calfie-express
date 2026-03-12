@@ -40,6 +40,9 @@ export function OrderVoidAction(props: {
   orderId: string;
   initialStatus: string;
   allowVoid: boolean;
+  carrierCode: "UPS" | "FEDEX";
+  trackingNumber?: string | null;
+  guidanceSummary?: string;
 }) {
   const [submitting, setSubmitting] = useState(false);
   const [status, setStatus] = useState(props.initialStatus);
@@ -103,7 +106,17 @@ export function OrderVoidAction(props: {
       ) : null}
       {status === "VOID_REQUESTED" ? (
         <p className="muted" style={{ marginTop: "12px" }}>
-          After you void the shipment in the carrier portal, use "Mark refunded manually" to close the loop.
+          After you void the shipment in the carrier portal, use &quot;Mark refunded manually&quot; to close the loop.
+        </p>
+      ) : null}
+      {props.guidanceSummary ? (
+        <p className="muted" style={{ marginTop: "12px" }}>
+          {props.guidanceSummary}
+        </p>
+      ) : null}
+      {props.trackingNumber ? (
+        <p className="muted" style={{ marginTop: "12px" }}>
+          Carrier: {props.carrierCode}. Tracking: {props.trackingNumber}
         </p>
       ) : null}
     </div>

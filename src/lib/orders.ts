@@ -9,6 +9,11 @@ export async function getStoredOrders(userId: string) {
       createdAt: "desc"
     },
     include: {
+      adjustments: {
+        orderBy: {
+          createdAt: "desc"
+        }
+      },
       quote: true,
       user: true
     }
@@ -22,6 +27,11 @@ export async function getStoredOrderById(id: string, userId?: string) {
       ...(userId ? { userId } : {})
     },
     include: {
+      adjustments: {
+        orderBy: {
+          createdAt: "desc"
+        }
+      },
       quote: true,
       user: true
     }
@@ -34,6 +44,11 @@ export async function getAllStoredOrders() {
       createdAt: "desc"
     },
     include: {
+      adjustments: {
+        orderBy: {
+          createdAt: "desc"
+        }
+      },
       quote: true,
       user: true
     }

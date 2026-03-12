@@ -3,6 +3,7 @@ import { UpsAdapter } from "@/lib/carriers/ups";
 import { FedExAdapter } from "@/lib/carriers/fedex";
 import { demoShipment } from "@/lib/mock-data";
 import { requireUser } from "@/lib/auth/session";
+import { prisma } from "@/lib/db";
 
 export async function POST(request: Request) {
   const user = await requireUser();
@@ -37,8 +38,27 @@ export async function POST(request: Request) {
     : { rates: [], status: { mode: "disabled", diagnostic: "FedEx is disabled for this customer." } };
 
   const rates = [...upsResult.rates, ...fedexResult.rates].sort((left, right) => left.customerPrice - right.customerPrice);
+  const storedQuote = await prisma.quote.create({
+    data: {
+      userId: user.id,
+      status: "PRICED",
+      shipFromPostalCode: shipment.shipFrom.postalCode,
+      shipToPostalCode: shipment.shipTo.postalCode,
+      shipDate: shipment.shipDate ? new Date(shipment.shipDate) : undefined,
+      packageLength: shipment.packageLength,
+      packageWidth: shipment.packageWidth,
+      packageHeight: shipment.packageHeight,
+      packageWeight: shipment.packageWeight,
+      declaredValue: shipment.declaredValue,
+      residential: shipment.residential,
+      signatureRequired: shipment.signatureRequired,
+      shipmentJson: shipment,
+      ratesJson: rates
+    }
+  });
 
   return NextResponse.json({
+    quoteId: storedQuote.id,
     shipment,
     rates,
     source: upsResult.mode,

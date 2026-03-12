@@ -1,47 +1,52 @@
-# Vercel Deployment Checklist
+﻿# Vercel Deployment Checklist
 
-This is the recommended first production path for CALFIE EXPRESS.
+This is the simplest first production path for CALFIE EXPRESS.
 
 ## Recommended stack
 
 - Hosting: Vercel
 - Database: Neon PostgreSQL
 - Payments: Stripe
-- Carrier: UPS
-- Email: Postmark later, once a domain is ready
+- Carrier: UPS first, FedEx after production validation
+- Email: Postmark when sender/domain are ready
 
-## Why this path
+## Before deployment
 
-- Vercel is the simplest official deployment target for a Next.js app.
-- Neon works cleanly with Prisma/PostgreSQL.
-- You can launch first on a `*.vercel.app` URL and connect your custom domain later.
+Confirm locally:
 
-## Before you deploy
+- `npm run lint`
+- `npx tsc --noEmit`
+- `npm run build`
 
-1. Make sure local webhooks and live UPS purchases are already working.
-2. Upgrade local packages with:
-   - `npm install`
-3. Confirm your local app still starts with:
-   - `npm run dev -- --hostname 127.0.0.1 --port 3010`
-4. Commit the project to Git.
-5. Push to GitHub.
+Also confirm your key flows:
+
+- customer registration/login
+- live UPS quote
+- live UPS purchase
+- wallet top-up
+- wallet pay-for-label
+- UPS batch preview and purchase
+- Stripe webhook fulfillment
+- admin customer management
+- admin adjustment workflow
+- admin launch readiness page
 
 ## Create production services
 
-### 1. Create a Neon database
+### 1. Neon
 
-- Create a new Neon project.
-- Copy the production `DATABASE_URL`.
+- create a Neon PostgreSQL database
+- copy the production `DATABASE_URL`
 
-### 2. Create a Vercel project
+### 2. Vercel
 
-- Import the GitHub repository into Vercel.
-- Keep the framework as Next.js.
-- Do not add a custom domain yet unless you already bought one.
+- import the repo into Vercel
+- keep framework as Next.js
+- use Node 20
 
 ## Production environment variables
 
-Add these in Vercel Project Settings -> Environment Variables.
+Configure these in Vercel:
 
 - `DATABASE_URL`
 - `NEXT_PUBLIC_APP_NAME=CALFIE EXPRESS`
@@ -49,27 +54,44 @@ Add these in Vercel Project Settings -> Environment Variables.
 - `UPS_CLIENT_ID`
 - `UPS_CLIENT_SECRET`
 - `UPS_ACCOUNT_NUMBER`
-- `UPS_ACCOUNT_NUMBERS` (comma-separated when you want to compare multiple UPS discounts per quote)
+- `UPS_ACCOUNT_NUMBERS`
 - `UPS_API_BASE_URL=https://onlinetools.ups.com`
 - `STRIPE_SECRET_KEY`
 - `STRIPE_PUBLISHABLE_KEY`
 - `STRIPE_WEBHOOK_SECRET`
-- later: `POSTMARK_SERVER_TOKEN`
-- later: `POSTMARK_FROM_EMAIL`
+- `ALLOW_LIVE_LABEL_PURCHASE`
+- `ALLOW_FEDEX_LABEL_PURCHASE`
+- `LABEL_STORAGE_BACKEND=vercel_blob`
+- `BLOB_READ_WRITE_TOKEN`
 
-## Production database migration
+Configure these when ready:
 
-After the first deployment, run Prisma migration against the production database.
+- `FEDEX_API_KEY`
+- `FEDEX_SECRET_KEY`
+- `FEDEX_ACCOUNT_NUMBER`
+- `FEDEX_CHILD_KEY`
+- `FEDEX_CHILD_SECRET`
+- `FEDEX_API_BASE_URL=https://apis.fedex.com`
+- `POSTMARK_SERVER_TOKEN`
+- `POSTMARK_FROM_EMAIL`
 
-Use a machine where `npm` works and point `DATABASE_URL` at the Neon production database, then run:
+## Database migration
+
+After the first deployment, run:
 
 ```powershell
 npx prisma migrate deploy
 ```
 
-## Stripe production webhook
+Then regenerate client if needed:
 
-After Vercel gives you the production URL, create a Stripe webhook endpoint for:
+```powershell
+npx prisma generate
+```
+
+## Stripe webhook
+
+Create a production webhook endpoint:
 
 - `https://your-project.vercel.app/api/webhooks/stripe`
 
@@ -78,36 +100,51 @@ Subscribe at least to:
 - `payment_intent.succeeded`
 - `payment_intent.payment_failed`
 
-Then copy the Stripe production webhook signing secret into Vercel as:
+Copy the production signing secret into:
 
 - `STRIPE_WEBHOOK_SECRET`
 
-## First production test
+## First production smoke test
 
-1. Create a customer account on the Vercel URL.
-2. Request a live UPS quote.
-3. Create an order draft.
-4. Complete a Stripe test-mode payment if you are still in test mode.
-5. Confirm:
-   - order row saved in database
+1. Create a customer account.
+2. Save a default card.
+3. Request a live UPS quote.
+4. Create an order draft.
+5. Complete payment.
+6. Confirm:
+   - order row exists
    - webhook returns `200`
    - tracking number saved
-   - label available on the order detail page
+   - label available on order detail
+   - wallet page loads
+   - admin pages load
 
-## After the custom domain is purchased
+## Launch-readiness review
 
-1. Connect the domain in Vercel.
-2. Update:
-   - `NEXT_PUBLIC_APP_URL`
-   - Stripe webhook endpoint URL
-3. If you enable email, verify your sender/domain in Postmark.
-4. Set:
-   - `POSTMARK_SERVER_TOKEN`
-   - `POSTMARK_FROM_EMAIL`
+Before enabling broad customer traffic, open:
 
-## Recommended next production tasks
+- `/admin/launch`
+- `/admin/carriers`
+- `/admin/reconciliation`
 
-- Add admin customer management
-- Add label void/refund flow
-- Store labels in durable object/file storage
-- Add FedEx as phase 2
+Use these pages to confirm:
+
+- no blocked readiness items remain
+- UPS production purchase is enabled only when intended
+- FedEx purchase stays guarded until production drills pass
+- wallet liability and open adjustment exposure are understood
+
+## Important caveat
+
+If `LABEL_STORAGE_BACKEND` remains `local`, labels are written under `public/stored-labels/`.
+That is acceptable for local or single-instance operation, but real multi-instance production should use Vercel Blob.
+
+## After launch
+
+Recommended next production hardening tasks:
+
+- enable Postmark and verify customer emails
+- validate FedEx production purchase flow before enabling broadly
+- move labels to durable storage
+- add backup/reconciliation runbooks
+- create clean commits and release notes from the current branch state

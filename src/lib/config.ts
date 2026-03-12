@@ -16,6 +16,9 @@ const envSchema = z.object({
   FEDEX_ACCOUNT_NUMBER: z.string().optional(),
   FEDEX_API_BASE_URL: z.string().url().default("https://apis-sandbox.fedex.com"),
   ALLOW_LIVE_LABEL_PURCHASE: z.enum(["true", "false"]).default("false"),
+  ALLOW_FEDEX_LABEL_PURCHASE: z.enum(["true", "false"]).default("false"),
+  LABEL_STORAGE_BACKEND: z.enum(["local", "vercel_blob"]).default("local"),
+  BLOB_READ_WRITE_TOKEN: z.string().optional(),
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
   STRIPE_PUBLISHABLE_KEY: z.string().optional(),
@@ -41,6 +44,9 @@ const parsed = envSchema.parse({
   FEDEX_ACCOUNT_NUMBER: process.env.FEDEX_ACCOUNT_NUMBER,
   FEDEX_API_BASE_URL: process.env.FEDEX_API_BASE_URL,
   ALLOW_LIVE_LABEL_PURCHASE: process.env.ALLOW_LIVE_LABEL_PURCHASE,
+  ALLOW_FEDEX_LABEL_PURCHASE: process.env.ALLOW_FEDEX_LABEL_PURCHASE,
+  LABEL_STORAGE_BACKEND: process.env.LABEL_STORAGE_BACKEND,
+  BLOB_READ_WRITE_TOKEN: process.env.BLOB_READ_WRITE_TOKEN,
   STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
   STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
   STRIPE_PUBLISHABLE_KEY: process.env.STRIPE_PUBLISHABLE_KEY,
@@ -66,5 +72,6 @@ function getConfiguredUpsAccount() {
 export const env = {
   ...parsed,
   ALLOW_LIVE_LABEL_PURCHASE: parsed.ALLOW_LIVE_LABEL_PURCHASE === "true",
+  ALLOW_FEDEX_LABEL_PURCHASE: parsed.ALLOW_FEDEX_LABEL_PURCHASE === "true",
   UPS_ACCOUNT_NUMBER: getConfiguredUpsAccount()
 };

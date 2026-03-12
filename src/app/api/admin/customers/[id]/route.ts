@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 
@@ -44,7 +44,9 @@ export async function PATCH(
             signatureSurcharge: toNumber(body?.signatureSurcharge, 0),
             enabled: Boolean(body?.enabled ?? true),
             allowUps: body?.allowUps === false ? false : true,
-            allowFedex: body?.allowFedex === false ? false : true
+            allowFedex: body?.allowFedex === false ? false : true,
+            allowUpsPurchase: body?.allowUpsPurchase === false ? false : true,
+            allowFedexPurchase: body?.allowFedexPurchase === false ? false : true
           },
           update: {
             markupPercent: toNumber(body?.markupPercent, Number(customer.pricingProfile?.markupPercent ?? 12)),
@@ -54,13 +56,31 @@ export async function PATCH(
             signatureSurcharge: toNumber(body?.signatureSurcharge, Number(customer.pricingProfile?.signatureSurcharge ?? 0)),
             enabled: Boolean(body?.enabled ?? customer.pricingProfile?.enabled ?? true),
             allowUps: body?.allowUps === false ? false : Boolean(customer.pricingProfile?.allowUps ?? true),
-            allowFedex: body?.allowFedex === false ? false : Boolean(customer.pricingProfile?.allowFedex ?? true)
+            allowFedex: body?.allowFedex === false ? false : Boolean(customer.pricingProfile?.allowFedex ?? true),
+            allowUpsPurchase: body?.allowUpsPurchase === false ? false : Boolean(customer.pricingProfile?.allowUpsPurchase ?? true),
+            allowFedexPurchase: body?.allowFedexPurchase === false ? false : Boolean(customer.pricingProfile?.allowFedexPurchase ?? true)
           }
         }
       }
     },
     include: {
       pricingProfile: true,
+      walletTransactions: {
+        orderBy: {
+          createdAt: "desc"
+        },
+        take: 8,
+        include: {
+          order: {
+            select: {
+              id: true,
+              selectedCarrier: true,
+              selectedService: true,
+              status: true
+            }
+          }
+        }
+      },
       _count: {
         select: {
           orders: true,
