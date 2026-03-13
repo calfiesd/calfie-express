@@ -81,11 +81,6 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         initialQuote={initialQuote}
         stripeConfigured={stripe.configured}
         stripePublishableKey={env.STRIPE_PUBLISHABLE_KEY ?? ""}
-        pricingSummary={{
-          markupPercent: pricingSummary.markupPercent,
-          flatFee: pricingSummary.flatFee,
-          minimumProfit: pricingSummary.minimumProfit
-        }}
         customerEmail={user.email}
         initialWalletBalance={wallet?.balance ?? Number(user.walletBalance ?? 0)}
         initialSavedAddresses={savedAddresses}

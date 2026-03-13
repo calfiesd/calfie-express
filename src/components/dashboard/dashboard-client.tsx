@@ -98,11 +98,6 @@ type DashboardClientProps = {
   initialQuote: UpsQuoteResponse;
   stripeConfigured: boolean;
   stripePublishableKey: string;
-  pricingSummary: {
-    markupPercent: number;
-    flatFee: number;
-    minimumProfit: number;
-  };
   customerEmail: string;
   initialWalletBalance: number;
   initialSavedAddresses: SavedAddressSummary[];
@@ -130,7 +125,6 @@ export function DashboardClient({
   initialQuote,
   stripeConfigured,
   stripePublishableKey,
-  pricingSummary,
   customerEmail,
   initialWalletBalance,
   initialSavedAddresses,
@@ -484,10 +478,10 @@ export function DashboardClient({
           </p>
         </div>
         <div className="card">
-          <div className="muted">Pricing profile</div>
-          <div className="kpi">{pricingSummary.markupPercent}%</div>
+          <div className="muted">Account pricing</div>
+          <div className="kpi">Active</div>
           <div className="muted">
-            Flat fee {money(pricingSummary.flatFee)} - Minimum profit {money(pricingSummary.minimumProfit)}
+            Your customer-specific pricing rules are applied automatically to every quote you request.
           </div>
         </div>
       </section>
