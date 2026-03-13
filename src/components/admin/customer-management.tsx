@@ -490,13 +490,17 @@ export function CustomerManagement({ customers }: Props) {
     setResettingPassword(false);
   }
 
-  async function applyWalletAdjustment(sign: 1 | -1) {
+  async function applyWalletAdjustment(sign: 1 | -1, options?: {
+    manualTopUpRequestId?: string | null;
+    amountOverride?: number;
+    noteOverride?: string;
+  }) {
     if (!selected) {
       return;
     }
 
     setWalletMessage(null);
-    const amount = Number(walletAmountDraft);
+    const amount = options?.amountOverride ?? Number(walletAmountDraft);
 
     if (!Number.isFinite(amount) || amount <= 0) {
       setWalletMessage("Enter a wallet adjustment amount greater than zero.");
@@ -512,8 +516,10 @@ export function CustomerManagement({ customers }: Props) {
       },
       body: JSON.stringify({
         amount: Number((amount * sign).toFixed(2)),
-        note: walletNoteDraft,
-        manualTopUpRequestId: selected.manualTopUpRequests.find((request) => request.status === "PENDING")?.id ?? null
+        note: options?.noteOverride ?? walletNoteDraft,
+        manualTopUpRequestId: options?.manualTopUpRequestId
+          ?? selected.manualTopUpRequests.find((request) => request.status === "PENDING")?.id
+          ?? null
       })
     });
 
@@ -537,7 +543,9 @@ export function CustomerManagement({ customers }: Props) {
         manualTopUpRequests: Array.isArray(payload.manualTopUpRequests) ? payload.manualTopUpRequests : row.manualTopUpRequests
       };
     }));
-    setWalletNoteDraft("");
+    if (!options?.noteOverride) {
+      setWalletNoteDraft("");
+    }
     setWalletMessage(payload.message ?? "Wallet updated.");
     setWalletAdjusting(false);
   }
@@ -800,6 +808,22 @@ export function CustomerManagement({ customers }: Props) {
                             {request.note ? <div className="muted">Note: {request.note}</div> : null}
                             {request.walletTransactionId ? <div className="muted">Wallet txn: {request.walletTransactionId}</div> : null}
                             {request.processedByAdmin ? <div className="muted">Processed by {request.processedByAdmin}</div> : null}
+                            {request.status === "PENDING" ? (
+                              <div style={{ marginTop: "8px" }}>
+                                <button
+                                  className="button"
+                                  type="button"
+                                  onClick={() => applyWalletAdjustment(1, {
+                                    manualTopUpRequestId: request.id,
+                                    amountOverride: request.amount,
+                                    noteOverride: `Manual top-up request ${request.id}${request.reference ? ` (${request.reference})` : ""}`
+                                  })}
+                                  disabled={walletAdjusting}
+                                >
+                                  {walletAdjusting ? "Updating..." : `Credit ${money(request.amount)}`}
+                                </button>
+                              </div>
+                            ) : null}
                           </td>
                         </tr>
                       )) : (
