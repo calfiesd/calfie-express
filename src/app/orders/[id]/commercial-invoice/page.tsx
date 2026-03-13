@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { notFound, redirect } from "next/navigation";
 import { SiteNav } from "@/components/site-nav";
+import { InvoiceActions } from "@/components/orders/invoice-actions";
 import { requireUser } from "@/lib/auth/session";
 import { getStoredOrderById } from "@/lib/orders";
 import { buildCommercialInvoice, isInternationalShipment } from "@/lib/international";
@@ -47,14 +48,24 @@ export default async function CommercialInvoicePage({ params }: { params: Promis
   return (
     <>
       <SiteNav />
-      <section className="section card">
-        <p className="eyebrow">Commercial invoice</p>
-        <h1>{invoice.invoiceNumber}</h1>
-        <p className="muted">Prepared from the shipment details saved on order {order.id}.</p>
+      <section className="section invoice-sheet">
+        <div className="ops-hero">
+          <div>
+            <p className="eyebrow" style={{ color: "#f3c980" }}>Commercial invoice</p>
+            <h1 style={{ marginTop: 0 }}>{invoice.invoiceNumber}</h1>
+            <p className="muted">Prepared from the shipment details saved on order {order.id}.</p>
+            <InvoiceActions />
+          </div>
+          <div className="invoice-panel">
+            <div className="muted">Invoice date</div>
+            <div className="kpi" style={{ fontSize: "1.8rem", marginBottom: "8px" }}>{new Date(invoice.invoiceDate).toLocaleDateString()}</div>
+            <div className="muted">Currency USD • Non-delivery {invoice.nonDeliveryOption}</div>
+          </div>
+        </div>
       </section>
 
-      <section className="section grid-2">
-        <div className="card">
+      <section className="section invoice-grid">
+        <div className="invoice-panel">
           <h2>Exporter</h2>
           <p className="muted">{shipment.shipFrom.name}</p>
           {shipment.shipFrom.company ? <p className="muted">{shipment.shipFrom.company}</p> : null}
@@ -65,7 +76,7 @@ export default async function CommercialInvoicePage({ params }: { params: Promis
           {invoice.exporterTaxId ? <p className="muted">Tax ID: {invoice.exporterTaxId}</p> : null}
         </div>
 
-        <div className="card">
+        <div className="invoice-panel">
           <h2>Consignee</h2>
           <p className="muted">{shipment.shipTo.name}</p>
           {shipment.shipTo.company ? <p className="muted">{shipment.shipTo.company}</p> : null}
@@ -78,7 +89,7 @@ export default async function CommercialInvoicePage({ params }: { params: Promis
       </section>
 
       <section className="section grid-3">
-        <div className="card">
+        <div className="invoice-panel">
           <h2>Invoice terms</h2>
           <p className="muted">Date: {new Date(invoice.invoiceDate).toLocaleDateString()}</p>
           <p className="muted">Reason for export: {invoice.reasonForExport || "Not provided"}</p>
@@ -86,14 +97,14 @@ export default async function CommercialInvoicePage({ params }: { params: Promis
           <p className="muted">Non-delivery option: {invoice.nonDeliveryOption}</p>
         </div>
 
-        <div className="card">
+        <div className="invoice-panel">
           <h2>Shipment summary</h2>
           <p className="muted">Contents: {invoice.contentsSummary || "Not provided"}</p>
           <p className="muted">Declared value: {money(invoice.totalDeclaredValue)}</p>
           <p className="muted">Package weight: {shipment.packageWeight} lb</p>
         </div>
 
-        <div className="card">
+        <div className="invoice-panel">
           <h2>Order references</h2>
           <p className="muted">Order: {order.id}</p>
           <p className="muted">Carrier: {order.selectedCarrier}</p>
@@ -102,7 +113,7 @@ export default async function CommercialInvoicePage({ params }: { params: Promis
         </div>
       </section>
 
-      <section className="section table">
+      <section className="section table is-compact">
         <table>
           <thead>
             <tr>
