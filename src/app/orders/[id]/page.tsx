@@ -65,11 +65,12 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             <p className="muted">Wallet debit: ${Number(order.walletDebitedAmount ?? 0).toFixed(2)}</p>
             <p className="muted">Margin: ${Number(order.marginAmount).toFixed(2)}</p>
           </div>
-          <div className="ops-kpi">
-            <h2>Documents</h2>
-            {order.labelUrl ? <p><a href={order.labelUrl} target="_blank">Open stored label</a></p> : <p className="muted">No label saved yet.</p>}
-            {internationalShipment ? <p><Link href={`/orders/${order.id}/commercial-invoice`}>Open commercial invoice</Link></p> : <p className="muted">No customs invoice needed.</p>}
-          </div>
+        <div className="ops-kpi">
+          <h2>Documents</h2>
+          {order.labelUrl ? <p><a href={order.labelUrl} target="_blank">Open stored label</a></p> : <p className="muted">No label saved yet.</p>}
+          {internationalShipment ? <p><Link href={`/orders/${order.id}/commercial-invoice`}>Open commercial invoice</Link></p> : <p className="muted">No customs invoice needed.</p>}
+          {internationalShipment ? <p className="muted">Customs payload attached during purchase when invoice data was provided.</p> : null}
+        </div>
           <div className="ops-kpi">
             <h2>Carrier follow-up</h2>
             <p className="muted">

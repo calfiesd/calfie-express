@@ -3,6 +3,7 @@ import { UpsAdapter } from "@/lib/carriers/ups";
 import { FedExAdapter } from "@/lib/carriers/fedex";
 import type { CarrierAdapter } from "@/lib/carriers/base";
 import type { CarrierRate, PurchasedLabel, ShipmentInput } from "@/lib/domain-types";
+import { buildCarrierPurchaseDiagnostic } from "@/lib/carriers/diagnostics";
 import { persistLabelAsset } from "@/lib/labels";
 import { sendOrderEmail } from "@/lib/notifications/email";
 
@@ -177,7 +178,11 @@ async function fulfillStoredOrder(args: {
       orderId: storedOrder.id
     };
   } catch (error) {
-    const diagnostic = error instanceof Error ? error.message : `Unknown ${rate.carrier} purchase error`;
+    const diagnostic = buildCarrierPurchaseDiagnostic({
+      carrier: rate.carrier,
+      shipment,
+      error
+    });
 
     await prisma.order.update({
       where: { id: storedOrder.id },
