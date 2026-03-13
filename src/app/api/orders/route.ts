@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { CarrierRate, ShipmentInput } from "@/lib/domain-types";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth/session";
+import { validateInternationalShipment } from "@/lib/international";
 
 export async function POST(request: Request) {
   const user = await requireUser();
@@ -17,6 +18,11 @@ export async function POST(request: Request) {
 
   if (!rate || !shipment) {
     return NextResponse.json({ message: "A selected rate and shipment are required." }, { status: 400 });
+  }
+
+  const internationalValidationError = validateInternationalShipment(shipment);
+  if (internationalValidationError) {
+    return NextResponse.json({ message: internationalValidationError }, { status: 400 });
   }
 
   if (rate.carrier === "UPS" && user.pricingProfile?.allowUpsPurchase === false) {

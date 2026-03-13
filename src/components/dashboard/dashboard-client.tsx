@@ -11,9 +11,11 @@ import type {
   PurchasedLabel,
   SavedAddressSummary,
   ShipmentInput,
+  ShipmentCustomsItemInput,
   UpsDebugAccount,
   UpsQuoteResponse
 } from "@/lib/domain-types";
+import { isInternationalShipment, sumCustomsItems } from "@/lib/international";
 
 const buttonBaseStyle = {
   display: "inline-flex",
@@ -82,6 +84,34 @@ const cautionPanelStyle = {
   background: "linear-gradient(135deg, rgba(244, 229, 205, 0.95), rgba(255, 250, 242, 0.96))",
   border: "1px solid rgba(189, 139, 52, 0.24)"
 } as const;
+
+const sectionCardStyle = {
+  border: "1px solid rgba(29, 36, 48, 0.1)",
+  borderRadius: "18px",
+  padding: "18px",
+  background: "rgba(255, 255, 255, 0.4)"
+} as const;
+
+const countryOptions = [
+  { value: "US", label: "United States" },
+  { value: "CA", label: "Canada" },
+  { value: "CN", label: "China" },
+  { value: "MX", label: "Mexico" },
+  { value: "GB", label: "United Kingdom" }
+] as const;
+
+function createEmptyCustomsItem(): ShipmentCustomsItemInput {
+  return {
+    id: `item_${Math.random().toString(36).slice(2, 8)}`,
+    description: "",
+    quantity: 1,
+    unitValue: 0,
+    unitWeight: 0,
+    hsCode: "",
+    originCountryCode: "US",
+    sku: ""
+  };
+}
 function money(value: number | undefined) {
   if (typeof value !== "number" || Number.isNaN(value)) {
     return "-";
@@ -153,6 +183,9 @@ export function DashboardClient({
   const [isOrderPending, setIsOrderPending] = useState(false);
   const [isCheckoutPending, setIsCheckoutPending] = useState(false);
   const [isWalletPending, setIsWalletPending] = useState(false);
+  const internationalShipment = isInternationalShipment(shipment);
+  const customsItems = shipment.customs?.items ?? [];
+  const customsValueTotal = sumCustomsItems(customsItems);
 
   function resetDraftState() {
     setOrderDraft(null);
@@ -189,6 +222,78 @@ export function DashboardClient({
     }));
   }
 
+  function updateCustomsField<K extends keyof NonNullable<ShipmentInput["customs"]>>(key: K, value: NonNullable<ShipmentInput["customs"]>[K]) {
+    setShipment((current) => ({
+      ...current,
+      customs: {
+        reasonForExport: current.customs?.reasonForExport ?? "Sale",
+        invoiceNumber: current.customs?.invoiceNumber ?? "",
+        termsOfSale: current.customs?.termsOfSale ?? "DDU",
+        nonDeliveryOption: current.customs?.nonDeliveryOption ?? "RETURN",
+        exporterTaxId: current.customs?.exporterTaxId ?? "",
+        importerTaxId: current.customs?.importerTaxId ?? "",
+        contentsSummary: current.customs?.contentsSummary ?? "",
+        items: current.customs?.items ?? [createEmptyCustomsItem()],
+        [key]: value
+      }
+    }));
+    resetDraftState();
+  }
+
+  function updateCustomsItem(itemId: string, key: keyof ShipmentCustomsItemInput, value: string | number) {
+    setShipment((current) => ({
+      ...current,
+      customs: current.customs ? {
+        ...current.customs,
+        items: current.customs.items.map((item) => item.id === itemId ? { ...item, [key]: value } : item)
+      } : {
+        reasonForExport: "Sale",
+        invoiceNumber: "",
+        termsOfSale: "DDU",
+        nonDeliveryOption: "RETURN",
+        exporterTaxId: "",
+        importerTaxId: "",
+        contentsSummary: "",
+        items: [createEmptyCustomsItem()]
+      }
+    }));
+    resetDraftState();
+  }
+
+  function addCustomsItem() {
+    setShipment((current) => ({
+      ...current,
+      customs: {
+        reasonForExport: current.customs?.reasonForExport ?? "Sale",
+        invoiceNumber: current.customs?.invoiceNumber ?? "",
+        termsOfSale: current.customs?.termsOfSale ?? "DDU",
+        nonDeliveryOption: current.customs?.nonDeliveryOption ?? "RETURN",
+        exporterTaxId: current.customs?.exporterTaxId ?? "",
+        importerTaxId: current.customs?.importerTaxId ?? "",
+        contentsSummary: current.customs?.contentsSummary ?? "",
+        items: [...(current.customs?.items ?? []), createEmptyCustomsItem()]
+      }
+    }));
+    resetDraftState();
+  }
+
+  function removeCustomsItem(itemId: string) {
+    setShipment((current) => {
+      if (!current.customs) {
+        return current;
+      }
+
+      return {
+        ...current,
+        customs: {
+          ...current.customs,
+          items: current.customs.items.filter((item) => item.id !== itemId)
+        }
+      };
+    });
+    resetDraftState();
+  }
+
   function applySavedAddress(addressId: string) {
     setSelectedSavedAddressId(addressId);
     const match = savedAddresses.find((address) => address.id === addressId);
@@ -205,6 +310,7 @@ export function DashboardClient({
         phone: match.phone ?? "",
         email: match.email ?? "",
         line1: match.line1,
+        line2: match.line2 ?? "",
         city: match.city,
         state: match.state,
         postalCode: match.postalCode,
@@ -230,6 +336,7 @@ export function DashboardClient({
         phone: shipment.shipTo.phone,
         email: shipment.shipTo.email,
         line1: shipment.shipTo.line1,
+        line2: shipment.shipTo.line2,
         city: shipment.shipTo.city,
         state: shipment.shipTo.state,
         postalCode: shipment.shipTo.postalCode,
@@ -546,39 +653,168 @@ export function DashboardClient({
 
       <section className="section grid-2">
         <div className="card">
-          <h2>Shipment details</h2>
-          <div className="form-grid">
-            <label className="field"><span>From name</span><input value={shipment.shipFrom.name} onChange={(e) => updateAddress("shipFrom", "name", e.target.value)} /></label>
-            <label className="field"><span>From phone</span><input value={shipment.shipFrom.phone} onChange={(e) => updateAddress("shipFrom", "phone", e.target.value)} /></label>
-            <label className="field"><span>From line 1</span><input value={shipment.shipFrom.line1} onChange={(e) => updateAddress("shipFrom", "line1", e.target.value)} /></label>
-            <label className="field"><span>From city</span><input value={shipment.shipFrom.city} onChange={(e) => updateAddress("shipFrom", "city", e.target.value)} /></label>
-            <label className="field"><span>From state</span><input value={shipment.shipFrom.state} onChange={(e) => updateAddress("shipFrom", "state", e.target.value)} /></label>
-            <label className="field"><span>From ZIP</span><input value={shipment.shipFrom.postalCode} onChange={(e) => updateAddress("shipFrom", "postalCode", e.target.value)} /></label>
-            <label className="field">
-              <span>Saved recipient</span>
-              <select value={selectedSavedAddressId} onChange={(e) => applySavedAddress(e.target.value)}>
-                <option value="">Select saved address</option>
-                {savedAddresses.map((address) => (
-                  <option key={address.id} value={address.id}>
-                    {address.label} - {address.city}, {address.state}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="field"><span>Save destination as</span><input value={saveAddressLabel} onChange={(e) => setSaveAddressLabel(e.target.value)} placeholder="Warehouse, Amazon returns, Storefront" /></label>
-            <label className="field"><span>To name</span><input value={shipment.shipTo.name} onChange={(e) => updateAddress("shipTo", "name", e.target.value)} /></label>
-            <label className="field"><span>To phone</span><input value={shipment.shipTo.phone} onChange={(e) => updateAddress("shipTo", "phone", e.target.value)} /></label>
-            <label className="field"><span>To line 1</span><input value={shipment.shipTo.line1} onChange={(e) => updateAddress("shipTo", "line1", e.target.value)} /></label>
-            <label className="field"><span>To city</span><input value={shipment.shipTo.city} onChange={(e) => updateAddress("shipTo", "city", e.target.value)} /></label>
-            <label className="field"><span>To state</span><input value={shipment.shipTo.state} onChange={(e) => updateAddress("shipTo", "state", e.target.value)} /></label>
-            <label className="field"><span>To ZIP</span><input value={shipment.shipTo.postalCode} onChange={(e) => updateAddress("shipTo", "postalCode", e.target.value)} /></label>
-            <label className="field"><span>Length</span><input type="number" value={shipment.packageLength} onChange={(e) => updateField("packageLength", Number(e.target.value))} /></label>
-            <label className="field"><span>Width</span><input type="number" value={shipment.packageWidth} onChange={(e) => updateField("packageWidth", Number(e.target.value))} /></label>
-            <label className="field"><span>Height</span><input type="number" value={shipment.packageHeight} onChange={(e) => updateField("packageHeight", Number(e.target.value))} /></label>
-            <label className="field"><span>Weight</span><input type="number" value={shipment.packageWeight} onChange={(e) => updateField("packageWeight", Number(e.target.value))} /></label>
-            <label className="field"><span>Declared value</span><input type="number" value={shipment.declaredValue} onChange={(e) => updateField("declaredValue", Number(e.target.value))} /></label>
-            <label className="field"><span>Residential</span><select value={shipment.residential ? "yes" : "no"} onChange={(e) => updateField("residential", e.target.value === "yes")}><option value="yes">Yes</option><option value="no">No</option></select></label>
-            <label className="field"><span>Simple Rate</span><select value={shipment.simpleRate ? "yes" : "no"} onChange={(e) => updateField("simpleRate", e.target.value === "yes")}><option value="yes">Yes</option><option value="no">No</option></select></label>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: "16px", alignItems: "start", marginBottom: "18px" }}>
+            <div>
+              <p className="eyebrow">Create shipment</p>
+              <h2 style={{ marginTop: 0 }}>Address, package, and customs details</h2>
+              <p className="muted" style={{ marginBottom: 0 }}>
+                Build domestic labels quickly, or complete the extra customs details needed for international shipments.
+              </p>
+            </div>
+            <div className="card" style={{ minWidth: "220px", padding: "14px 16px" }}>
+              <div className="muted">Shipment mode</div>
+              <div className="kpi" style={{ fontSize: "1.8rem" }}>{internationalShipment ? "Intl" : "Domestic"}</div>
+              <div className="muted">
+                {internationalShipment ? "Commercial invoice data is required before creating the draft." : "Standard domestic label flow."}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gap: "16px" }}>
+            <div style={sectionCardStyle}>
+              <h3 style={{ marginTop: 0 }}>Origin address</h3>
+              <div className="form-grid">
+                <label className="field"><span>Sender name</span><input value={shipment.shipFrom.name} onChange={(e) => updateAddress("shipFrom", "name", e.target.value)} placeholder="Contact name" /></label>
+                <label className="field"><span>Company</span><input value={shipment.shipFrom.company ?? ""} onChange={(e) => updateAddress("shipFrom", "company", e.target.value)} placeholder="Business or warehouse name" /></label>
+                <label className="field"><span>Phone</span><input value={shipment.shipFrom.phone} onChange={(e) => updateAddress("shipFrom", "phone", e.target.value)} placeholder="Required for carrier pickup and issues" /></label>
+                <label className="field"><span>Email</span><input value={shipment.shipFrom.email ?? ""} onChange={(e) => updateAddress("shipFrom", "email", e.target.value)} placeholder="ops@example.com" /></label>
+                <label className="field"><span>Address line 1</span><input value={shipment.shipFrom.line1} onChange={(e) => updateAddress("shipFrom", "line1", e.target.value)} placeholder="Street address" /></label>
+                <label className="field"><span>Address line 2</span><input value={shipment.shipFrom.line2 ?? ""} onChange={(e) => updateAddress("shipFrom", "line2", e.target.value)} placeholder="Suite, floor, building" /></label>
+                <label className="field"><span>City</span><input value={shipment.shipFrom.city} onChange={(e) => updateAddress("shipFrom", "city", e.target.value)} /></label>
+                <label className="field"><span>State / province</span><input value={shipment.shipFrom.state} onChange={(e) => updateAddress("shipFrom", "state", e.target.value)} /></label>
+                <label className="field"><span>Postal code</span><input value={shipment.shipFrom.postalCode} onChange={(e) => updateAddress("shipFrom", "postalCode", e.target.value)} /></label>
+                <label className="field">
+                  <span>Country</span>
+                  <select value={shipment.shipFrom.countryCode} onChange={(e) => updateAddress("shipFrom", "countryCode", e.target.value)}>
+                    {countryOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </select>
+                </label>
+              </div>
+            </div>
+
+            <div style={sectionCardStyle}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: "16px", alignItems: "start" }}>
+                <div>
+                  <h3 style={{ marginTop: 0 }}>Destination address</h3>
+                  <p className="muted" style={{ marginBottom: "12px" }}>Use a saved recipient or enter a fresh commercial address.</p>
+                </div>
+                <div style={{ minWidth: "240px" }}>
+                  <label className="field">
+                    <span>Saved recipient</span>
+                    <select value={selectedSavedAddressId} onChange={(e) => applySavedAddress(e.target.value)}>
+                      <option value="">Select saved address</option>
+                      {savedAddresses.map((address) => (
+                        <option key={address.id} value={address.id}>
+                          {address.label} - {address.city}, {address.state}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              </div>
+              <div className="form-grid">
+                <label className="field"><span>Save destination as</span><input value={saveAddressLabel} onChange={(e) => setSaveAddressLabel(e.target.value)} placeholder="Warehouse, Amazon returns, Storefront" /></label>
+                <div />
+                <label className="field"><span>Recipient name</span><input value={shipment.shipTo.name} onChange={(e) => updateAddress("shipTo", "name", e.target.value)} placeholder="Recipient contact name" /></label>
+                <label className="field"><span>Company</span><input value={shipment.shipTo.company ?? ""} onChange={(e) => updateAddress("shipTo", "company", e.target.value)} placeholder="Company or importer name" /></label>
+                <label className="field"><span>Phone</span><input value={shipment.shipTo.phone} onChange={(e) => updateAddress("shipTo", "phone", e.target.value)} placeholder="Required for delivery exceptions" /></label>
+                <label className="field"><span>Email</span><input value={shipment.shipTo.email ?? ""} onChange={(e) => updateAddress("shipTo", "email", e.target.value)} placeholder="receiver@example.com" /></label>
+                <label className="field"><span>Address line 1</span><input value={shipment.shipTo.line1} onChange={(e) => updateAddress("shipTo", "line1", e.target.value)} placeholder="Street address" /></label>
+                <label className="field"><span>Address line 2</span><input value={shipment.shipTo.line2 ?? ""} onChange={(e) => updateAddress("shipTo", "line2", e.target.value)} placeholder="Apartment, suite, building" /></label>
+                <label className="field"><span>City</span><input value={shipment.shipTo.city} onChange={(e) => updateAddress("shipTo", "city", e.target.value)} /></label>
+                <label className="field"><span>State / province</span><input value={shipment.shipTo.state} onChange={(e) => updateAddress("shipTo", "state", e.target.value)} /></label>
+                <label className="field"><span>Postal code</span><input value={shipment.shipTo.postalCode} onChange={(e) => updateAddress("shipTo", "postalCode", e.target.value)} /></label>
+                <label className="field">
+                  <span>Country</span>
+                  <select value={shipment.shipTo.countryCode} onChange={(e) => updateAddress("shipTo", "countryCode", e.target.value)}>
+                    {countryOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </select>
+                </label>
+              </div>
+            </div>
+
+            <div style={sectionCardStyle}>
+              <h3 style={{ marginTop: 0 }}>Package and service options</h3>
+              <div className="form-grid">
+                <label className="field"><span>Length (in)</span><input type="number" min="0" step="0.1" value={shipment.packageLength} onChange={(e) => updateField("packageLength", Number(e.target.value))} /></label>
+                <label className="field"><span>Width (in)</span><input type="number" min="0" step="0.1" value={shipment.packageWidth} onChange={(e) => updateField("packageWidth", Number(e.target.value))} /></label>
+                <label className="field"><span>Height (in)</span><input type="number" min="0" step="0.1" value={shipment.packageHeight} onChange={(e) => updateField("packageHeight", Number(e.target.value))} /></label>
+                <label className="field"><span>Weight (lb)</span><input type="number" min="0" step="0.1" value={shipment.packageWeight} onChange={(e) => updateField("packageWeight", Number(e.target.value))} /></label>
+                <label className="field"><span>Declared value (USD)</span><input type="number" min="0" step="0.01" value={shipment.declaredValue} onChange={(e) => updateField("declaredValue", Number(e.target.value))} /></label>
+                <label className="field"><span>Ship date</span><input type="date" value={shipment.shipDate ? shipment.shipDate.slice(0, 10) : ""} onChange={(e) => updateField("shipDate", e.target.value)} /></label>
+                <label className="field"><span>Residential delivery</span><select value={shipment.residential ? "yes" : "no"} onChange={(e) => updateField("residential", e.target.value === "yes")}><option value="yes">Yes</option><option value="no">No</option></select></label>
+                <label className="field"><span>Signature required</span><select value={shipment.signatureRequired ? "yes" : "no"} onChange={(e) => updateField("signatureRequired", e.target.value === "yes")}><option value="no">No</option><option value="yes">Yes</option></select></label>
+                <label className="field"><span>UPS Simple Rate</span><select value={shipment.simpleRate ? "yes" : "no"} onChange={(e) => updateField("simpleRate", e.target.value === "yes")}><option value="yes">Yes</option><option value="no">No</option></select></label>
+              </div>
+            </div>
+
+            {internationalShipment ? (
+              <div style={{ ...sectionCardStyle, borderColor: "rgba(61, 126, 83, 0.22)", background: "linear-gradient(135deg, rgba(255, 252, 247, 0.96), rgba(240, 248, 241, 0.96))" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: "16px", alignItems: "start" }}>
+                  <div>
+                    <h3 style={{ marginTop: 0 }}>International customs</h3>
+                    <p className="muted" style={{ marginBottom: 0 }}>
+                      Complete these details before creating the order draft. They will be reused for the commercial invoice.
+                    </p>
+                  </div>
+                  <div className="card" style={{ minWidth: "220px", padding: "14px 16px" }}>
+                    <div className="muted">Customs value total</div>
+                    <div className="kpi" style={{ fontSize: "1.8rem" }}>{money(customsValueTotal)}</div>
+                    <div className="muted">Should match your declared merchandise value.</div>
+                  </div>
+                </div>
+                <div className="form-grid" style={{ marginTop: "14px" }}>
+                  <label className="field"><span>Reason for export</span><input value={shipment.customs?.reasonForExport ?? ""} onChange={(e) => updateCustomsField("reasonForExport", e.target.value)} placeholder="Sale, repair, sample, gift" /></label>
+                  <label className="field"><span>Invoice number</span><input value={shipment.customs?.invoiceNumber ?? ""} onChange={(e) => updateCustomsField("invoiceNumber", e.target.value)} placeholder="Optional internal invoice number" /></label>
+                  <label className="field"><span>Terms of sale</span><select value={shipment.customs?.termsOfSale ?? "DDU"} onChange={(e) => updateCustomsField("termsOfSale", e.target.value)}><option value="DDU">DDU</option><option value="DDP">DDP</option><option value="DAP">DAP</option><option value="EXW">EXW</option></select></label>
+                  <label className="field"><span>Non-delivery option</span><select value={shipment.customs?.nonDeliveryOption ?? "RETURN"} onChange={(e) => updateCustomsField("nonDeliveryOption", e.target.value as "RETURN" | "ABANDON")}><option value="RETURN">Return to sender</option><option value="ABANDON">Abandon</option></select></label>
+                  <label className="field"><span>Exporter tax ID</span><input value={shipment.customs?.exporterTaxId ?? ""} onChange={(e) => updateCustomsField("exporterTaxId", e.target.value)} placeholder="EIN, VAT, or business tax ID" /></label>
+                  <label className="field"><span>Importer tax ID</span><input value={shipment.customs?.importerTaxId ?? ""} onChange={(e) => updateCustomsField("importerTaxId", e.target.value)} placeholder="Optional receiver tax ID" /></label>
+                  <label className="field" style={{ gridColumn: "1 / -1" }}>
+                    <span>Contents summary</span>
+                    <input value={shipment.customs?.contentsSummary ?? ""} onChange={(e) => updateCustomsField("contentsSummary", e.target.value)} placeholder="Example: Apparel samples, phone accessories, printed catalogs" />
+                  </label>
+                </div>
+
+                <div className="table" style={{ marginTop: "16px" }}>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Description</th>
+                        <th>Qty</th>
+                        <th>Unit value</th>
+                        <th>Unit weight</th>
+                        <th>Origin</th>
+                        <th>HS code</th>
+                        <th>SKU</th>
+                        <th>Remove</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {customsItems.map((item) => (
+                        <tr key={item.id}>
+                          <td><input value={item.description} onChange={(e) => updateCustomsItem(item.id, "description", e.target.value)} placeholder="Merchandise description" /></td>
+                          <td><input type="number" min="1" step="1" value={item.quantity} onChange={(e) => updateCustomsItem(item.id, "quantity", Number(e.target.value))} /></td>
+                          <td><input type="number" min="0" step="0.01" value={item.unitValue} onChange={(e) => updateCustomsItem(item.id, "unitValue", Number(e.target.value))} /></td>
+                          <td><input type="number" min="0" step="0.01" value={item.unitWeight} onChange={(e) => updateCustomsItem(item.id, "unitWeight", Number(e.target.value))} /></td>
+                          <td>
+                            <select value={item.originCountryCode} onChange={(e) => updateCustomsItem(item.id, "originCountryCode", e.target.value)}>
+                              {countryOptions.map((option) => <option key={option.value} value={option.value}>{option.value}</option>)}
+                            </select>
+                          </td>
+                          <td><input value={item.hsCode ?? ""} onChange={(e) => updateCustomsItem(item.id, "hsCode", e.target.value)} placeholder="Optional" /></td>
+                          <td><input value={item.sku ?? ""} onChange={(e) => updateCustomsItem(item.id, "sku", e.target.value)} placeholder="Optional" /></td>
+                          <td><button className="button" type="button" onClick={() => removeCustomsItem(item.id)} disabled={customsItems.length === 1}>Remove</button></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="actions" style={{ marginTop: "16px" }}>
+                  <button className="button" type="button" onClick={addCustomsItem}>Add item</button>
+                </div>
+              </div>
+            ) : null}
           </div>
           <div className="actions">
             <button className="button" type="button" onClick={validateRecipientAddress} disabled={isAddressValidationPending}>
@@ -652,8 +888,10 @@ export function DashboardClient({
               <p className="muted">Carrier cost: {money(selectedRate.carrierCost)}</p>
               <p className="muted">Margin: {money(selectedRate.customerPrice - selectedRate.carrierCost)}</p>
               <p className="muted">Wallet available: {money(walletBalance)}</p>
+              <p className="muted">Shipment mode: {internationalShipment ? "International" : "Domestic"}</p>
               {selectedRate.carrier === "UPS" ? <p className="muted">Simple Rate: {shipment.simpleRate ? "Requested" : "Off"}</p> : null}
               {selectedRate.carrier === "FEDEX" ? <p className="muted">FedEx purchase environment: {fedexPurchaseStatus?.environment ?? "unknown"}. {fedexPurchaseStatus?.diagnostic ?? "FedEx purchase status unavailable."}</p> : null}
+              {internationalShipment ? <p className="muted">Commercial invoice items: {customsItems.length}. Declared customs value: {money(customsValueTotal)}.</p> : null}
               <div className="actions">
                 <button className="button primary" style={!selectedRate || isOrderPending ? disabledPrimaryButtonStyle : primaryButtonStyle} type="button" onClick={createOrderDraft} disabled={!selectedRate || isOrderPending}>{isOrderPending ? "Creating draft..." : "Create order draft"}</button>
                 <button className="button" style={isCheckoutPending || !orderDraft ? disabledSecondaryButtonStyle : secondaryButtonStyle} type="button" onClick={createCheckoutDraft} disabled={isCheckoutPending || !orderDraft}>{isCheckoutPending ? "Preparing checkout..." : "Prepare Stripe checkout"}</button>
@@ -662,7 +900,7 @@ export function DashboardClient({
               {!walletCanCoverSelectedRate ? <p className="muted">Wallet balance is below this label cost. Add funds at <Link href="/wallet">/wallet</Link> or continue with Stripe checkout.</p> : null}
             </>
           ) : <p className="muted">Get a quote to choose a carrier service.</p>}
-          {orderDraft ? <div><p className="muted">Draft order: {orderDraft.id}</p><p className="muted">Status: {orderDraft.status}</p></div> : null}
+          {orderDraft ? <div><p className="muted">Draft order: {orderDraft.id}</p><p className="muted">Status: {orderDraft.status}</p>{internationalShipment ? <p className="muted"><Link href={`/orders/${orderDraft.id}/commercial-invoice`} target="_blank">Open commercial invoice preview</Link></p> : null}</div> : null}
           {orderMessage ? <p className="muted">{orderMessage}</p> : null}
           {checkoutDraft ? <div><p className="muted">Payment intent: {checkoutDraft.paymentIntentId}</p><p className="muted">Checkout mode: {checkoutDraft.paymentMode}</p><p className="muted">Amount: {money(checkoutDraft.amount)}</p><p className="muted">Status: {checkoutDraft.status}</p></div> : null}
           {checkoutMessage ? <p className="muted">{checkoutMessage}</p> : null}

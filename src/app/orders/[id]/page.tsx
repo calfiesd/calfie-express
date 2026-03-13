@@ -7,6 +7,8 @@ import { OrderVoidAction } from "@/components/orders/order-void-action";
 import { getStoredOrderById } from "@/lib/orders";
 import { requireUser } from "@/lib/auth/session";
 import { getOrderVoidGuidance } from "@/lib/carrier-operations";
+import { isInternationalShipment } from "@/lib/international";
+import type { ShipmentInput } from "@/lib/domain-types";
 
 export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireUser();
@@ -27,6 +29,8 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
     trackingNumber: order.trackingNumber,
     paymentSource: order.paymentSource
   });
+  const shipment = order.shipmentJson as ShipmentInput | null;
+  const internationalShipment = shipment ? isInternationalShipment(shipment) : false;
 
   return (
     <>
@@ -57,6 +61,11 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         <div className="card">
           <h2>Reprint</h2>
           {order.labelUrl ? <a href={order.labelUrl} target="_blank">Open stored label</a> : <p className="muted">No label saved yet.</p>}
+          {internationalShipment ? (
+            <p className="muted" style={{ marginTop: "12px" }}>
+              <Link href={`/orders/${order.id}/commercial-invoice`}>Open commercial invoice</Link>
+            </p>
+          ) : null}
         </div>
         <div className="card">
           <h2>{voidGuidance.title}</h2>

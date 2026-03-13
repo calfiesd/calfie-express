@@ -19,10 +19,33 @@ export type AddressInput = {
   phone: string;
   email?: string;
   line1: string;
+  line2?: string;
   city: string;
   state: string;
   postalCode: string;
   countryCode: string;
+};
+
+export type ShipmentCustomsItemInput = {
+  id: string;
+  description: string;
+  quantity: number;
+  unitValue: number;
+  unitWeight: number;
+  hsCode?: string;
+  originCountryCode: string;
+  sku?: string;
+};
+
+export type ShipmentCustomsInput = {
+  reasonForExport: string;
+  invoiceNumber?: string;
+  termsOfSale: string;
+  nonDeliveryOption: "RETURN" | "ABANDON";
+  exporterTaxId?: string;
+  importerTaxId?: string;
+  contentsSummary: string;
+  items: ShipmentCustomsItemInput[];
 };
 
 export type ShipmentInput = {
@@ -38,6 +61,7 @@ export type ShipmentInput = {
   signatureRequired: boolean;
   simpleRate: boolean;
   shipDate?: string;
+  customs?: ShipmentCustomsInput;
 };
 
 export type CarrierRate = {

@@ -35,6 +35,7 @@ export const demoShipment: ShipmentInput = {
     phone: "2125550140",
     email: "receiver@example.com",
     line1: "350 5th Ave",
+    line2: "Floor 20",
     city: "New York",
     state: "NY",
     postalCode: "10118",
