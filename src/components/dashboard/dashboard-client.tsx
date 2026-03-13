@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { PaymentCheckout } from "@/components/dashboard/payment-checkout";
 import type {
@@ -15,6 +15,7 @@ import type {
   UpsDebugAccount,
   UpsQuoteResponse
 } from "@/lib/domain-types";
+import { COUNTRY_OPTIONS } from "@/lib/countries";
 import { isInternationalShipment, sumCustomsItems } from "@/lib/international";
 
 const buttonBaseStyle = {
@@ -91,14 +92,6 @@ const sectionCardStyle = {
   padding: "18px",
   background: "rgba(255, 255, 255, 0.4)"
 } as const;
-
-const countryOptions = [
-  { value: "US", label: "United States" },
-  { value: "CA", label: "Canada" },
-  { value: "CN", label: "China" },
-  { value: "MX", label: "Mexico" },
-  { value: "GB", label: "United Kingdom" }
-] as const;
 
 function createEmptyCustomsItem(): ShipmentCustomsItemInput {
   return {
@@ -183,9 +176,17 @@ export function DashboardClient({
   const [isOrderPending, setIsOrderPending] = useState(false);
   const [isCheckoutPending, setIsCheckoutPending] = useState(false);
   const [isWalletPending, setIsWalletPending] = useState(false);
+  const [postalLookupMessages, setPostalLookupMessages] = useState<{ shipFrom: string | null; shipTo: string | null }>({
+    shipFrom: null,
+    shipTo: null
+  });
   const internationalShipment = isInternationalShipment(shipment);
   const customsItems = shipment.customs?.items ?? [];
   const customsValueTotal = sumCustomsItems(customsItems);
+  const lastPostalLookup = useRef<{ shipFrom: string; shipTo: string }>({
+    shipFrom: "",
+    shipTo: ""
+  });
 
   function resetDraftState() {
     setOrderDraft(null);
@@ -206,6 +207,92 @@ export function DashboardClient({
       setIsQuotePending(false);
     }
   }, [quote]);
+
+  useEffect(() => {
+    const countryCode = shipment.shipFrom.countryCode.trim().toUpperCase();
+    const postalCode = shipment.shipFrom.postalCode.trim();
+    const lookupKey = `${countryCode}:${postalCode}`;
+
+    if (postalCode.length < 3 || lastPostalLookup.current.shipFrom === lookupKey) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(async () => {
+      const response = await fetch(`/api/postal-lookup?countryCode=${encodeURIComponent(countryCode)}&postalCode=${encodeURIComponent(postalCode)}`);
+      const body = await response.json().catch(() => null);
+      lastPostalLookup.current.shipFrom = lookupKey;
+
+      if (!response.ok || !body?.location) {
+        setPostalLookupMessages((current) => ({ ...current, shipFrom: null }));
+        return;
+      }
+
+      setShipment((current) => {
+        if (current.shipFrom.countryCode.trim().toUpperCase() !== countryCode || current.shipFrom.postalCode.trim() !== postalCode) {
+          return current;
+        }
+
+        return {
+          ...current,
+          shipFrom: {
+            ...current.shipFrom,
+            city: body.location.city,
+            state: body.location.state || current.shipFrom.state,
+            countryCode: body.location.countryCode || current.shipFrom.countryCode
+          }
+        };
+      });
+      setPostalLookupMessages((current) => ({
+        ...current,
+        shipFrom: `Auto-filled ${body.location.city}${body.location.state ? `, ${body.location.state}` : ""} from postal code.`
+      }));
+    }, 500);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [shipment.shipFrom.countryCode, shipment.shipFrom.postalCode]);
+
+  useEffect(() => {
+    const countryCode = shipment.shipTo.countryCode.trim().toUpperCase();
+    const postalCode = shipment.shipTo.postalCode.trim();
+    const lookupKey = `${countryCode}:${postalCode}`;
+
+    if (postalCode.length < 3 || lastPostalLookup.current.shipTo === lookupKey) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(async () => {
+      const response = await fetch(`/api/postal-lookup?countryCode=${encodeURIComponent(countryCode)}&postalCode=${encodeURIComponent(postalCode)}`);
+      const body = await response.json().catch(() => null);
+      lastPostalLookup.current.shipTo = lookupKey;
+
+      if (!response.ok || !body?.location) {
+        setPostalLookupMessages((current) => ({ ...current, shipTo: null }));
+        return;
+      }
+
+      setShipment((current) => {
+        if (current.shipTo.countryCode.trim().toUpperCase() !== countryCode || current.shipTo.postalCode.trim() !== postalCode) {
+          return current;
+        }
+
+        return {
+          ...current,
+          shipTo: {
+            ...current.shipTo,
+            city: body.location.city,
+            state: body.location.state || current.shipTo.state,
+            countryCode: body.location.countryCode || current.shipTo.countryCode
+          }
+        };
+      });
+      setPostalLookupMessages((current) => ({
+        ...current,
+        shipTo: `Auto-filled ${body.location.city}${body.location.state ? `, ${body.location.state}` : ""} from postal code.`
+      }));
+    }, 500);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [shipment.shipTo.countryCode, shipment.shipTo.postalCode]);
 
   function updateField<K extends keyof ShipmentInput>(key: K, value: ShipmentInput[K]) {
     setShipment((current) => ({ ...current, [key]: value }));
@@ -686,10 +773,11 @@ export function DashboardClient({
                 <label className="field">
                   <span>Country</span>
                   <select value={shipment.shipFrom.countryCode} onChange={(e) => updateAddress("shipFrom", "countryCode", e.target.value)}>
-                    {countryOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                    {COUNTRY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
                 </label>
               </div>
+              {postalLookupMessages.shipFrom ? <p className="muted" style={{ marginTop: "12px", marginBottom: 0 }}>{postalLookupMessages.shipFrom}</p> : null}
             </div>
 
             <div style={sectionCardStyle}>
@@ -727,10 +815,11 @@ export function DashboardClient({
                 <label className="field">
                   <span>Country</span>
                   <select value={shipment.shipTo.countryCode} onChange={(e) => updateAddress("shipTo", "countryCode", e.target.value)}>
-                    {countryOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                    {COUNTRY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
                 </label>
               </div>
+              {postalLookupMessages.shipTo ? <p className="muted" style={{ marginTop: "12px", marginBottom: 0 }}>{postalLookupMessages.shipTo}</p> : null}
             </div>
 
             <div style={sectionCardStyle}>
@@ -799,7 +888,7 @@ export function DashboardClient({
                           <td><input type="number" min="0" step="0.01" value={item.unitWeight} onChange={(e) => updateCustomsItem(item.id, "unitWeight", Number(e.target.value))} /></td>
                           <td>
                             <select value={item.originCountryCode} onChange={(e) => updateCustomsItem(item.id, "originCountryCode", e.target.value)}>
-                              {countryOptions.map((option) => <option key={option.value} value={option.value}>{option.value}</option>)}
+                              {COUNTRY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.value}</option>)}
                             </select>
                           </td>
                           <td><input value={item.hsCode ?? ""} onChange={(e) => updateCustomsItem(item.id, "hsCode", e.target.value)} placeholder="Optional" /></td>

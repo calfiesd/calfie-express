@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { AddressValidationResult, SavedAddressSummary } from "@/lib/domain-types";
+import { COUNTRY_OPTIONS } from "@/lib/countries";
 
 type AddressDraft = {
   label: string;
@@ -64,6 +65,8 @@ export function AddressBookClient({ initialAddresses }: { initialAddresses: Save
   const [message, setMessage] = useState<string | null>(null);
   const [validation, setValidation] = useState<AddressValidationResult | null>(null);
   const [validationPending, setValidationPending] = useState(false);
+  const [postalLookupMessage, setPostalLookupMessage] = useState<string | null>(null);
+  const lastPostalLookup = useRef("");
 
   const selected = addresses.find((address) => address.id === selectedId) ?? null;
 
@@ -91,6 +94,43 @@ export function AddressBookClient({ initialAddresses }: { initialAddresses: Save
     setValidation(null);
     setDraft((current) => ({ ...current, [key]: value }));
   }
+
+  useEffect(() => {
+    const countryCode = draft.countryCode.trim().toUpperCase();
+    const postalCode = draft.postalCode.trim();
+    const lookupKey = `${countryCode}:${postalCode}`;
+
+    if (postalCode.length < 3 || lastPostalLookup.current === lookupKey) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(async () => {
+      const response = await fetch(`/api/postal-lookup?countryCode=${encodeURIComponent(countryCode)}&postalCode=${encodeURIComponent(postalCode)}`);
+      const body = await response.json().catch(() => null);
+      lastPostalLookup.current = lookupKey;
+
+      if (!response.ok || !body?.location) {
+        setPostalLookupMessage(null);
+        return;
+      }
+
+      setDraft((current) => {
+        if (current.countryCode.trim().toUpperCase() !== countryCode || current.postalCode.trim() !== postalCode) {
+          return current;
+        }
+
+        return {
+          ...current,
+          city: body.location.city,
+          state: body.location.state || current.state,
+          countryCode: body.location.countryCode || current.countryCode
+        };
+      });
+      setPostalLookupMessage(`Auto-filled ${body.location.city}${body.location.state ? `, ${body.location.state}` : ""} from postal code.`);
+    }, 500);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [draft.countryCode, draft.postalCode]);
 
   async function validateAddress() {
     setValidationPending(true);
@@ -255,7 +295,14 @@ export function AddressBookClient({ initialAddresses }: { initialAddresses: Save
           <label className="field"><span>Company</span><input value={draft.company} onChange={(event) => updateField("company", event.target.value)} /></label>
           <label className="field"><span>Phone</span><input value={draft.phone} onChange={(event) => updateField("phone", event.target.value)} /></label>
           <label className="field"><span>Email</span><input value={draft.email} onChange={(event) => updateField("email", event.target.value)} /></label>
-          <label className="field"><span>Country code</span><input value={draft.countryCode} onChange={(event) => updateField("countryCode", event.target.value.toUpperCase())} /></label>
+          <label className="field">
+            <span>Country</span>
+            <select value={draft.countryCode} onChange={(event) => updateField("countryCode", event.target.value.toUpperCase())}>
+              {COUNTRY_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </label>
           <label className="field"><span>Line 1</span><input value={draft.line1} onChange={(event) => updateField("line1", event.target.value)} /></label>
           <label className="field"><span>Line 2</span><input value={draft.line2} onChange={(event) => updateField("line2", event.target.value)} /></label>
           <label className="field"><span>City</span><input value={draft.city} onChange={(event) => updateField("city", event.target.value)} /></label>
@@ -263,6 +310,7 @@ export function AddressBookClient({ initialAddresses }: { initialAddresses: Save
           <label className="field"><span>Postal code</span><input value={draft.postalCode} onChange={(event) => updateField("postalCode", event.target.value)} /></label>
           <label className="field"><span>Default recipient</span><select value={draft.isDefault ? "yes" : "no"} onChange={(event) => updateField("isDefault", event.target.value === "yes")}><option value="no">No</option><option value="yes">Yes</option></select></label>
         </div>
+        {postalLookupMessage ? <p className="muted">{postalLookupMessage}</p> : null}
         <div className="actions">
           <button className="button" type="button" onClick={validateAddress} disabled={pending || validationPending}>
             {validationPending ? "Validating..." : "Validate address"}
