@@ -8,6 +8,7 @@ import { getStoredOrderById } from "@/lib/orders";
 import { requireUser } from "@/lib/auth/session";
 import { getOrderVoidGuidance } from "@/lib/carrier-operations";
 import { isInternationalShipment } from "@/lib/international";
+import { getInternationalOrderStatus } from "@/lib/orders/international-status";
 import type { ShipmentInput } from "@/lib/domain-types";
 
 export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -31,6 +32,11 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   });
   const shipment = order.shipmentJson as ShipmentInput | null;
   const internationalShipment = shipment ? isInternationalShipment(shipment) : false;
+  const internationalStatus = getInternationalOrderStatus({
+    shipmentJson: shipment,
+    labelUrl: order.labelUrl,
+    trackingNumber: order.trackingNumber
+  });
 
   return (
     <>
@@ -57,6 +63,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             <p className="muted">Payment source: {order.paymentSource}</p>
             <p className="muted">Tracking: {order.trackingNumber ?? "Pending"}</p>
             <p className="muted">Shipment mode: {internationalShipment ? "International" : "Domestic"}</p>
+            {internationalStatus ? <p className="muted">International workflow: {internationalStatus.summary}</p> : null}
           </div>
           <div className="ops-kpi">
             <h2>Pricing</h2>
@@ -160,6 +167,13 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
               <p className="muted">{shipment.customs.contentsSummary || "Not provided"}</p>
               <p className="muted">{shipment.customs.items.length} customs line item(s)</p>
               <p className="muted"><Link href={`/orders/${order.id}/commercial-invoice`}>Open printable invoice</Link></p>
+            </div>
+            <div className="ops-kpi">
+              <h3 style={{ marginTop: 0 }}>Workflow state</h3>
+              <p className="muted">Customs ready: {internationalStatus?.customsReady ? "Yes" : "No"}</p>
+              <p className="muted">Invoice ready: {internationalStatus?.invoiceReady ? "Yes" : "No"}</p>
+              <p className="muted">Label ready: {internationalStatus?.labelReady ? "Yes" : "No"}</p>
+              <p className="muted">Tracking ready: {internationalStatus?.trackingReady ? "Yes" : "No"}</p>
             </div>
           </div>
           <div className="table is-compact" style={{ marginTop: "16px" }}>

@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { SiteNav } from "@/components/site-nav";
 import { getStoredOrders } from "@/lib/orders";
 import { requireUser } from "@/lib/auth/session";
+import { getInternationalOrderStatus } from "@/lib/orders/international-status";
 
 export default async function OrdersPage() {
   const user = await requireUser();
@@ -30,6 +31,8 @@ export default async function OrdersPage() {
             <tr>
               <th>Order ID</th>
               <th>Status</th>
+              <th>Shipment type</th>
+              <th>International status</th>
               <th>Paid with</th>
               <th>Service</th>
               <th>Customer amount</th>
@@ -40,23 +43,33 @@ export default async function OrdersPage() {
             </tr>
           </thead>
           <tbody>
-            {orders.map((order) => (
-              <tr key={order.id}>
-                <td>{order.id}</td>
-                <td>{order.status}</td>
-                <td>{order.paymentSource}</td>
-                <td>{order.selectedService}</td>
-                <td>${Number(order.quotedCustomerAmount).toFixed(2)}</td>
-                <td>{order.trackingNumber ?? "Pending"}</td>
-                <td>
-                  {order.adjustments.length
-                    ? `${order.adjustments.filter((item) => ["PENDING", "BILLED", "FAILED"].includes(item.status)).length} open / ${order.adjustments.length} total`
-                    : "None"}
-                </td>
-                <td>{order.labelUrl ? "Yes" : "No"}</td>
-                <td><Link href={`/orders/${order.id}`}>View</Link></td>
-              </tr>
-            ))}
+            {orders.map((order) => {
+              const internationalStatus = getInternationalOrderStatus({
+                shipmentJson: order.shipmentJson as Parameters<typeof getInternationalOrderStatus>[0]["shipmentJson"],
+                labelUrl: order.labelUrl,
+                trackingNumber: order.trackingNumber
+              });
+
+              return (
+                <tr key={order.id}>
+                  <td>{order.id}</td>
+                  <td>{order.status}</td>
+                  <td>{internationalStatus ? "International" : "Domestic"}</td>
+                  <td>{internationalStatus?.summary ?? "-"}</td>
+                  <td>{order.paymentSource}</td>
+                  <td>{order.selectedService}</td>
+                  <td>${Number(order.quotedCustomerAmount).toFixed(2)}</td>
+                  <td>{order.trackingNumber ?? "Pending"}</td>
+                  <td>
+                    {order.adjustments.length
+                      ? `${order.adjustments.filter((item) => ["PENDING", "BILLED", "FAILED"].includes(item.status)).length} open / ${order.adjustments.length} total`
+                      : "None"}
+                  </td>
+                  <td>{order.labelUrl ? "Yes" : "No"}</td>
+                  <td><Link href={`/orders/${order.id}`}>View</Link></td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </section>
