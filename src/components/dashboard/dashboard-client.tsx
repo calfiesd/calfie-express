@@ -204,6 +204,7 @@ export function DashboardClient({
   }
 
   function chooseRate(rate: CarrierRate) {
+    setPreferredCarrier(rate.carrier);
     setSelectedRate(rate);
     resetDraftState();
   }
@@ -906,7 +907,9 @@ export function DashboardClient({
                 <label className="field"><span>Signature required</span><select value={shipment.signatureRequired ? "yes" : "no"} onChange={(e) => updateField("signatureRequired", e.target.value === "yes")}><option value="no">No</option><option value="yes">Yes</option></select></label>
                 <label className="field"><span>UPS Simple Rate</span><select value={shipment.simpleRate ? "yes" : "no"} onChange={(e) => updateField("simpleRate", e.target.value === "yes")}><option value="yes">Yes</option><option value="no">No</option></select></label>
               </div>
-              {preferredCarrier !== "ALL" ? <p className="lookup-note">Package types are filtered for {preferredCarrier}. Switch back to compare mode to see all presets.</p> : null}
+              {preferredCarrier === "ALL"
+                ? <p className="lookup-note">Start in compare mode, then choose a service to automatically switch into that carrier workflow.</p>
+                : <p className="lookup-note">Package types are filtered for {preferredCarrier}. Switch back to compare mode to see all presets.</p>}
               {packageTypeRules.note ? <p className="lookup-note">{packageTypeRules.note}</p> : null}
             </div>
 
