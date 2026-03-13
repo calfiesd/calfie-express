@@ -17,12 +17,24 @@ export default async function AdminPage() {
     redirect("/login");
   }
 
-  const [customers, orders, pendingAdjustments, batchCount] = await Promise.all([
+  const [customers, orders, pendingAdjustments, pendingManualTopUps, batchCount] = await Promise.all([
     getAdminCustomers(),
     getAllStoredOrders(),
     prisma.carrierAdjustment.findMany({
       where: {
         status: "PENDING"
+      },
+      orderBy: {
+        createdAt: "asc"
+      },
+      take: 6
+    }),
+    prisma.manualTopUpRequest.findMany({
+      where: {
+        status: "PENDING"
+      },
+      orderBy: {
+        createdAt: "asc"
       }
     }),
     prisma.batchPurchase.count()
@@ -30,6 +42,15 @@ export default async function AdminPage() {
   const fedexPurchaseStatus = getFedExPurchaseStatus();
 
   const pendingExposure = pendingAdjustments.reduce((sum, item) => sum + Number(item.amountToCharge), 0);
+  const followUpOrders = orders
+    .filter((order) =>
+      order.status === "PAID" ||
+      order.status === "ADJUSTMENT_PENDING" ||
+      order.status === "FAILED" ||
+      (order.status === "LABEL_PURCHASED" && !order.labelUrl)
+    )
+    .slice(0, 6);
+  const totalPendingManualTopUpAmount = pendingManualTopUps.reduce((sum, item) => sum + Number(item.amount), 0);
 
   return (
     <>
@@ -62,6 +83,29 @@ export default async function AdminPage() {
             <div className="kpi">${pendingExposure.toFixed(2)}</div>
             <div className="muted">Pending recovery from carrier rebills</div>
           </div>
+        </div>
+      </section>
+
+      <section className="section grid-3">
+        <div className="card">
+          <h2>Manual top-up queue</h2>
+          <div className="kpi">{pendingManualTopUps.length}</div>
+          <p className="muted">${totalPendingManualTopUpAmount.toFixed(2)} waiting for admin credit.</p>
+          <p><Link href="/admin/customers">Open customer wallet operations</Link></p>
+        </div>
+
+        <div className="card">
+          <h2>Adjustment queue</h2>
+          <div className="kpi">{pendingAdjustments.length}</div>
+          <p className="muted">{pendingAdjustments.length ? "Pending carrier rebills need customer billing decisions." : "No pending carrier adjustments right now."}</p>
+          <p><Link href={"/admin/adjustments" as Route}>Open adjustment workflow</Link></p>
+        </div>
+
+        <div className="card">
+          <h2>Order follow-up</h2>
+          <div className="kpi">{followUpOrders.length}</div>
+          <p className="muted">{followUpOrders.length ? "Paid, failed, or unresolved orders should be reviewed today." : "No orders currently need manual follow-up."}</p>
+          <p><Link href="/admin/orders">Open admin orders</Link></p>
         </div>
       </section>
 
@@ -101,6 +145,38 @@ export default async function AdminPage() {
         <table>
           <thead>
             <tr>
+              <th>Pending top-ups</th>
+              <th>Customer</th>
+              <th>Amount</th>
+              <th>Method</th>
+              <th>Reference</th>
+            </tr>
+          </thead>
+          <tbody>
+            {pendingManualTopUps.length ? pendingManualTopUps.map((request) => {
+              const customer = customers.find((item) => item.id === request.userId);
+              return (
+                <tr key={request.id}>
+                  <td>{request.id}</td>
+                  <td>{customer?.companyName || customer?.email || request.userId}</td>
+                  <td>${Number(request.amount).toFixed(2)}</td>
+                  <td>{request.paymentMethod}</td>
+                  <td>{request.reference || request.note || "No reference supplied"}</td>
+                </tr>
+              );
+            }) : (
+              <tr>
+                <td colSpan={5}>No pending manual top-up requests.</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </section>
+
+      <section className="section table">
+        <table>
+          <thead>
+            <tr>
               <th>Adjustment ID</th>
               <th>Customer</th>
               <th>Reason</th>
@@ -133,7 +209,7 @@ export default async function AdminPage() {
         <table>
           <thead>
             <tr>
-              <th>Latest orders</th>
+              <th>Orders needing follow-up</th>
               <th>Customer</th>
               <th>Carrier</th>
               <th>Status</th>
@@ -141,7 +217,7 @@ export default async function AdminPage() {
             </tr>
           </thead>
           <tbody>
-            {orders.slice(0, 6).map((order) => (
+            {followUpOrders.length ? followUpOrders.map((order) => (
               <tr key={order.id}>
                 <td>{order.id}</td>
                 <td>{order.user.email}</td>
@@ -149,7 +225,11 @@ export default async function AdminPage() {
                 <td>{order.status}</td>
                 <td>${Number(order.quotedCustomerAmount).toFixed(2)}</td>
               </tr>
-            ))}
+            )) : (
+              <tr>
+                <td colSpan={5}>No paid, failed, or unresolved orders need follow-up.</td>
+              </tr>
+            )}
           </tbody>
         </table>
       </section>
