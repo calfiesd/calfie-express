@@ -1,17 +1,23 @@
 import { env } from "@/lib/config";
 import type { AddressValidationResult, CarrierRate, ShipmentInput, ValidatableAddress } from "@/lib/domain-types";
 import { buildUpsInternationalForms } from "@/lib/carriers/customs";
+import { resolveCarrierPackagePreset } from "@/lib/package-types";
 
 type UpsSimpleRateCode = "XS" | "S" | "M" | "L" | "XL";
 
 function getUpsSimpleRateCode(
-  input: Pick<ShipmentInput, "simpleRate" | "packageLength" | "packageWidth" | "packageHeight" | "packageWeight" | "shipFrom" | "shipTo">
+  input: Pick<ShipmentInput, "simpleRate" | "packageLength" | "packageWidth" | "packageHeight" | "packageWeight" | "packageType" | "shipFrom" | "shipTo">
 ): UpsSimpleRateCode | undefined {
   if (!input.simpleRate) {
     return undefined;
   }
 
-  if (input.packageWeight > 50 || input.shipFrom.countryCode !== "US" || input.shipTo.countryCode !== "US") {
+  if (
+    input.packageWeight > 50 ||
+    input.packageType !== "CUSTOMER_SUPPLIED" ||
+    input.shipFrom.countryCode !== "US" ||
+    input.shipTo.countryCode !== "US"
+  ) {
     return undefined;
   }
 
@@ -94,6 +100,7 @@ export async function getUpsAccessToken() {
 export async function requestUpsShopRates(accessToken: string, input: ShipmentInput, accountNumber: string) {
   const simpleRateCode = getUpsSimpleRateCode(input);
   const packageServiceOptions = buildUpsPackageServiceOptions(input);
+  const packagingCode = resolveCarrierPackagePreset("UPS", input.packageType).upsCode ?? "02";
   const body = {
     RateRequest: {
       Request: {
@@ -153,7 +160,7 @@ export async function requestUpsShopRates(accessToken: string, input: ShipmentIn
               }
             : undefined,
           PackagingType: {
-            Code: "02"
+            Code: packagingCode
           },
           Dimensions: {
             UnitOfMeasurement: {
@@ -205,6 +212,7 @@ export async function requestUpsShipment(accessToken: string, args: {
   const simpleRateCode = getUpsSimpleRateCode(shipment);
   const packageServiceOptions = buildUpsPackageServiceOptions(shipment);
   const internationalForms = buildUpsInternationalForms(shipment);
+  const packagingCode = resolveCarrierPackagePreset("UPS", shipment.packageType).upsCode ?? "02";
 
   if (!accountNumber) {
     throw new Error("No UPS account number is available for shipment purchase.");
@@ -289,7 +297,7 @@ export async function requestUpsShipment(accessToken: string, args: {
               }
             : undefined,
           Packaging: {
-            Code: "02"
+            Code: packagingCode
           },
           Dimensions: {
             UnitOfMeasurement: {

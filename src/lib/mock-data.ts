@@ -45,6 +45,7 @@ export const demoShipment: ShipmentInput = {
   packageWidth: 10,
   packageHeight: 8,
   packageWeight: 4,
+  packageType: "CUSTOMER_SUPPLIED",
   declaredValue: 120,
   residential: true,
   signatureRequired: false,

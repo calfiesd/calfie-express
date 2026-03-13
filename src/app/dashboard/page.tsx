@@ -44,7 +44,10 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     }
   };
   const storedQuote = quoteId ? await getStoredQuoteById(quoteId, user.id) : null;
-  const initialShipment = (storedQuote?.shipmentJson as typeof defaultShipment | null) ?? defaultShipment;
+  const initialShipment = {
+    ...defaultShipment,
+    ...(storedQuote?.shipmentJson as Partial<typeof defaultShipment> | null ?? {})
+  };
 
   const [ups, fedexResult, wallet, savedAddresses, adjustmentSummary, stripe] = await Promise.all([
     new UpsAdapter().getRatesWithDiagnostics(initialShipment, pricingSummary),

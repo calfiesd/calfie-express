@@ -1,6 +1,7 @@
 import { env } from "@/lib/config";
 import type { CarrierRate, ShipmentInput } from "@/lib/domain-types";
 import { buildFedExCustomsClearanceDetail } from "@/lib/carriers/customs";
+import { resolveCarrierPackagePreset } from "@/lib/package-types";
 
 type FedExRateRequest = {
   accountNumber: { value: string };
@@ -128,6 +129,7 @@ function buildFedExRateRequest(
     servicesNeededOnRateFailure?: boolean;
   }
 ): FedExRateRequest {
+  const packagingType = resolveCarrierPackagePreset("FEDEX", input.packageType).fedexCode ?? "YOUR_PACKAGING";
   const packageLineItem: FedExRateRequest["requestedShipment"]["requestedPackageLineItems"][number] = {
     weight: {
       units: "LB",
@@ -176,7 +178,7 @@ function buildFedExRateRequest(
         }
       },
       pickupType: options.pickupType,
-      packagingType: "YOUR_PACKAGING",
+      packagingType,
       rateRequestType: options.rateRequestType,
       preferredCurrency: "USD",
       shipDateStamp: toFedExShipDateStamp(input.shipDate),
@@ -256,6 +258,7 @@ function buildFedExShipmentRequest(args: {
 }) {
   const { orderId, shipment, rate } = args;
   const customsClearanceDetail = buildFedExCustomsClearanceDetail(shipment);
+  const packagingType = resolveCarrierPackagePreset("FEDEX", shipment.packageType).fedexCode ?? "YOUR_PACKAGING";
 
   const packageLineItem: Record<string, unknown> = {
     weight: {
@@ -286,7 +289,7 @@ function buildFedExShipmentRequest(args: {
       shipDatestamp: toFedExShipDateStamp(shipment.shipDate),
       pickupType: "DROPOFF_AT_FEDEX_LOCATION",
       serviceType: rate.serviceCode,
-      packagingType: "YOUR_PACKAGING",
+      packagingType,
       shipper: {
         contact: {
           personName: shipment.shipFrom.name,

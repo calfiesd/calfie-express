@@ -3,6 +3,7 @@ import type { CarrierRate, ShipmentInput } from "@/lib/domain-types";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth/session";
 import { validateInternationalShipment } from "@/lib/international";
+import { validatePackageTypeSelection } from "@/lib/package-types";
 
 export async function POST(request: Request) {
   const user = await requireUser();
@@ -20,6 +21,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "A selected rate and shipment are required." }, { status: 400 });
   }
 
+  const packageTypeError = validatePackageTypeSelection({
+    ...shipment,
+    packageType: shipment.packageType ?? "CUSTOMER_SUPPLIED"
+  });
+  if (packageTypeError) {
+    return NextResponse.json({ message: packageTypeError }, { status: 400 });
+  }
+
   const internationalValidationError = validateInternationalShipment(shipment);
   if (internationalValidationError) {
     return NextResponse.json({ message: internationalValidationError }, { status: 400 });
@@ -35,7 +44,8 @@ export async function POST(request: Request) {
 
   const storedShipment = {
     ...shipment,
-    userId: user.id
+    userId: user.id,
+    packageType: shipment.packageType ?? "CUSTOMER_SUPPLIED"
   };
   const margin = Number((rate.customerPrice - rate.carrierCost).toFixed(2));
 

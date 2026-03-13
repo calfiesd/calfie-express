@@ -4,6 +4,7 @@ import { FedExAdapter } from "@/lib/carriers/fedex";
 import { demoShipment } from "@/lib/mock-data";
 import { requireUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
+import { validatePackageTypeSelection } from "@/lib/package-types";
 
 export async function POST(request: Request) {
   const user = await requireUser();
@@ -15,8 +16,13 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const shipment = {
     ...(body?.shipment ?? demoShipment),
-    userId: user.id
+    userId: user.id,
+    packageType: body?.shipment?.packageType ?? demoShipment.packageType
   };
+  const packageTypeError = validatePackageTypeSelection(shipment);
+  if (packageTypeError) {
+    return NextResponse.json({ message: packageTypeError }, { status: 400 });
+  }
   const pricingProfile = {
     userId: user.id,
     markupPercent: Number(user.pricingProfile.markupPercent),

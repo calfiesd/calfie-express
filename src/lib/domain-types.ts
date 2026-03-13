@@ -1,5 +1,15 @@
 export type CarrierCode = "UPS" | "FEDEX";
 
+export type ShipmentPackageType =
+  | "CUSTOMER_SUPPLIED"
+  | "UPS_LETTER"
+  | "UPS_PAK"
+  | "UPS_TUBE"
+  | "FEDEX_ENVELOPE"
+  | "FEDEX_PAK"
+  | "FEDEX_BOX"
+  | "FEDEX_TUBE";
+
 export type PricingProfile = {
   userId: string;
   markupPercent: number;
@@ -56,6 +66,7 @@ export type ShipmentInput = {
   packageWidth: number;
   packageHeight: number;
   packageWeight: number;
+  packageType: ShipmentPackageType;
   declaredValue: number;
   residential: boolean;
   signatureRequired: boolean;

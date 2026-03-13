@@ -247,15 +247,15 @@ export function AddressBookClient({ initialAddresses }: { initialAddresses: Save
   }
 
   return (
-    <section className="section grid-2">
-      <div className="card">
+    <section className="section grid-2 shipment-layout">
+      <div className="card shipment-workbench">
         <p className="eyebrow">Address book</p>
         <h2>Saved ship-to addresses</h2>
         <p className="muted">Store common recipients once, mark a default, and reuse them later from the dashboard.</p>
         <div className="actions">
           <button className="button" type="button" onClick={() => chooseAddress("new")}>New address</button>
         </div>
-        <div className="table" style={{ marginTop: "16px" }}>
+        <div className="table is-compact table-row-select" style={{ marginTop: "16px" }}>
           <table>
             <thead>
               <tr>
@@ -286,7 +286,7 @@ export function AddressBookClient({ initialAddresses }: { initialAddresses: Save
         </div>
       </div>
 
-      <div className="card">
+      <div className="card service-rail">
         <p className="eyebrow">{selected ? "Edit address" : "New address"}</p>
         <h2>{selected ? draft.label || selected.label : "Create saved address"}</h2>
         <div className="form-grid">

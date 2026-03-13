@@ -135,6 +135,7 @@ export function parseUpsBatchCsv(csvText: string, shipFrom: ShipmentInput["shipF
         packageWidth,
         packageHeight,
         packageWeight,
+        packageType: "CUSTOMER_SUPPLIED",
         declaredValue,
         residential: normalizeResidential(columns[11]),
         signatureRequired: false,
