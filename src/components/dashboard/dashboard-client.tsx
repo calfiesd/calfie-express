@@ -738,9 +738,9 @@ export function DashboardClient({
         </section>
       ) : null}
 
-      <section className="section grid-2">
-        <div className="card">
-          <div style={{ display: "flex", justifyContent: "space-between", gap: "16px", alignItems: "start", marginBottom: "18px" }}>
+      <section className="section grid-2 shipment-layout">
+        <div className="card shipment-workbench">
+          <div className="workbench-header">
             <div>
               <p className="eyebrow">Create shipment</p>
               <h2 style={{ marginTop: 0 }}>Address, package, and customs details</h2>
@@ -748,7 +748,7 @@ export function DashboardClient({
                 Build domestic labels quickly, or complete the extra customs details needed for international shipments.
               </p>
             </div>
-            <div className="card" style={{ minWidth: "220px", padding: "14px 16px" }}>
+            <div className="workbench-status">
               <div className="muted">Shipment mode</div>
               <div className="kpi" style={{ fontSize: "1.8rem" }}>{internationalShipment ? "Intl" : "Domestic"}</div>
               <div className="muted">
@@ -758,7 +758,7 @@ export function DashboardClient({
           </div>
 
           <div style={{ display: "grid", gap: "16px" }}>
-            <div style={sectionCardStyle}>
+            <div className="workbench-block" style={sectionCardStyle}>
               <h3 style={{ marginTop: 0 }}>Origin address</h3>
               <div className="form-grid">
                 <label className="field"><span>Sender name</span><input value={shipment.shipFrom.name} onChange={(e) => updateAddress("shipFrom", "name", e.target.value)} placeholder="Contact name" /></label>
@@ -777,10 +777,10 @@ export function DashboardClient({
                   </select>
                 </label>
               </div>
-              {postalLookupMessages.shipFrom ? <p className="muted" style={{ marginTop: "12px", marginBottom: 0 }}>{postalLookupMessages.shipFrom}</p> : null}
+              {postalLookupMessages.shipFrom ? <p className="lookup-note">{postalLookupMessages.shipFrom}</p> : null}
             </div>
 
-            <div style={sectionCardStyle}>
+            <div className="workbench-block" style={sectionCardStyle}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: "16px", alignItems: "start" }}>
                 <div>
                   <h3 style={{ marginTop: 0 }}>Destination address</h3>
@@ -819,10 +819,10 @@ export function DashboardClient({
                   </select>
                 </label>
               </div>
-              {postalLookupMessages.shipTo ? <p className="muted" style={{ marginTop: "12px", marginBottom: 0 }}>{postalLookupMessages.shipTo}</p> : null}
+              {postalLookupMessages.shipTo ? <p className="lookup-note">{postalLookupMessages.shipTo}</p> : null}
             </div>
 
-            <div style={sectionCardStyle}>
+            <div className="workbench-block" style={sectionCardStyle}>
               <h3 style={{ marginTop: 0 }}>Package and service options</h3>
               <div className="form-grid">
                 <label className="field"><span>Length (in)</span><input type="number" min="0" step="0.1" value={shipment.packageLength} onChange={(e) => updateField("packageLength", Number(e.target.value))} /></label>
@@ -838,7 +838,7 @@ export function DashboardClient({
             </div>
 
             {internationalShipment ? (
-              <div style={{ ...sectionCardStyle, borderColor: "rgba(61, 126, 83, 0.22)", background: "linear-gradient(135deg, rgba(255, 252, 247, 0.96), rgba(240, 248, 241, 0.96))" }}>
+              <div className="workbench-block is-international" style={{ ...sectionCardStyle, borderColor: "rgba(61, 126, 83, 0.22)", background: "linear-gradient(135deg, rgba(255, 252, 247, 0.96), rgba(240, 248, 241, 0.96))" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: "16px", alignItems: "start" }}>
                   <div>
                     <h3 style={{ marginTop: 0 }}>International customs</h3>
@@ -846,7 +846,7 @@ export function DashboardClient({
                       Complete these details before creating the order draft. They will be reused for the commercial invoice.
                     </p>
                   </div>
-                  <div className="card" style={{ minWidth: "220px", padding: "14px 16px" }}>
+                  <div className="workbench-status">
                     <div className="muted">Customs value total</div>
                     <div className="kpi" style={{ fontSize: "1.8rem" }}>{money(customsValueTotal)}</div>
                     <div className="muted">Should match your declared merchandise value.</div>
@@ -966,7 +966,7 @@ export function DashboardClient({
           ) : null}
         </div>
 
-        <div className="card">
+        <div className="card service-rail">
           <h2>Selected service</h2>
           {selectedRate ? (
             <>
