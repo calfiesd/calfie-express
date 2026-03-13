@@ -100,9 +100,19 @@ type WalletClientProps = {
   stripePublishableKey: string;
   stripeConfigured: boolean;
   initialPaymentMethod: PaymentMethodSummary | null;
+  customerEmail: string;
+  manualTopUp: {
+    enabled: boolean;
+    bankName: string;
+    accountName: string;
+    accountNumber: string;
+    wechatId: string;
+    contact: string;
+    note: string;
+  };
 };
 
-export function WalletClient({ initialWallet, stripePublishableKey, stripeConfigured, initialPaymentMethod }: WalletClientProps) {
+export function WalletClient({ initialWallet, stripePublishableKey, stripeConfigured, initialPaymentMethod, customerEmail, manualTopUp }: WalletClientProps) {
   const [wallet, setWallet] = useState(initialWallet);
   const [amount, setAmount] = useState("25");
   const [draft, setDraft] = useState<WalletTopUpDraft | null>(null);
@@ -226,6 +236,38 @@ export function WalletClient({ initialWallet, stripePublishableKey, stripeConfig
           )}
         </div>
       </section>
+
+      {manualTopUp.enabled ? (
+        <section className="section card">
+          <p className="eyebrow">Manual transfer</p>
+          <h2>Transfer to our account and we will credit your wallet manually</h2>
+          <p className="muted">
+            If you prefer bank transfer, WeChat, or another offline payment method, send the payment first and then contact us so we can add the funds from the admin wallet tools.
+          </p>
+          <div className="grid-2" style={{ marginTop: "16px" }}>
+            <div>
+              <ul className="list muted">
+                {manualTopUp.bankName ? <li>Bank: {manualTopUp.bankName}</li> : null}
+                {manualTopUp.accountName ? <li>Account name: {manualTopUp.accountName}</li> : null}
+                {manualTopUp.accountNumber ? <li>Account number: {manualTopUp.accountNumber}</li> : null}
+                {manualTopUp.wechatId ? <li>WeChat / transfer ID: {manualTopUp.wechatId}</li> : null}
+                {manualTopUp.contact ? <li>Contact after payment: {manualTopUp.contact}</li> : null}
+              </ul>
+            </div>
+            <div>
+              <p className="muted" style={{ marginTop: 0 }}>
+                Use your account email <strong>{customerEmail}</strong> as the payment reference so we can match the transfer quickly.
+              </p>
+              <ol className="list muted">
+                <li>Transfer the amount using one of the methods shown here.</li>
+                <li>Send us the transfer proof or payment reference.</li>
+                <li>We will credit your wallet manually from the admin backend.</li>
+              </ol>
+              {manualTopUp.note ? <p className="muted">{manualTopUp.note}</p> : null}
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       <section className="section table">
         <table>

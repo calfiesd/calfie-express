@@ -28,6 +28,15 @@ export default async function WalletPage() {
     })
   ]);
   const stripe = getStripeStatus();
+  const manualTopUp = {
+    enabled: env.MANUAL_TOP_UP_ENABLED,
+    bankName: env.MANUAL_TOP_UP_BANK_NAME ?? "",
+    accountName: env.MANUAL_TOP_UP_ACCOUNT_NAME ?? "",
+    accountNumber: env.MANUAL_TOP_UP_ACCOUNT_NUMBER ?? "",
+    wechatId: env.MANUAL_TOP_UP_WECHAT_ID ?? "",
+    contact: env.MANUAL_TOP_UP_CONTACT ?? "",
+    note: env.MANUAL_TOP_UP_NOTE ?? ""
+  };
 
   return (
     <>
@@ -37,6 +46,8 @@ export default async function WalletPage() {
         stripePublishableKey={env.STRIPE_PUBLISHABLE_KEY ?? ""}
         stripeConfigured={stripe.configured}
         initialPaymentMethod={paymentMethod}
+        customerEmail={user.email}
+        manualTopUp={manualTopUp}
       />
     </>
   );
