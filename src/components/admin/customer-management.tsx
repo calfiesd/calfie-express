@@ -652,6 +652,7 @@ export function CustomerManagement({ customers }: Props) {
                   <th>Customer</th>
                   <th>Markup</th>
                   <th>Wallet</th>
+                  <th>Manual top-ups</th>
                   <th>Carriers</th>
                   <th>Orders</th>
                   <th>Status</th>
@@ -663,6 +664,7 @@ export function CustomerManagement({ customers }: Props) {
                   const carriers = row.pricingProfile
                     ? [row.pricingProfile.allowUps ? "UPS" : null, row.pricingProfile.allowFedex ? "FedEx" : null].filter(Boolean).join(" + ") || "None"
                     : "-";
+                  const pendingManualTopUps = row.manualTopUpRequests.filter((request) => request.status === "PENDING").length;
                   return (
                     <tr key={row.id} onClick={() => setSelectedId(row.id)} style={{ cursor: "pointer", background: active ? "rgba(210, 163, 77, 0.12)" : undefined }}>
                       <td>
@@ -671,6 +673,7 @@ export function CustomerManagement({ customers }: Props) {
                       </td>
                       <td>{row.pricingProfile ? `${row.pricingProfile.markupPercent}%` : "-"}</td>
                       <td>{money(row.walletBalance)}</td>
+                      <td>{pendingManualTopUps ? `${pendingManualTopUps} pending` : "None"}</td>
                       <td>{carriers}</td>
                       <td>{row._count.orders}</td>
                       <td>{row.pricingProfile?.enabled === false ? "Disabled" : "Active"}</td>

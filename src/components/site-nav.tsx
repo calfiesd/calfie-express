@@ -6,6 +6,8 @@ import { LogoutButton } from "@/components/auth/logout-button";
 export async function SiteNav() {
   const user = await getSessionUser();
   const isAdmin = user?.role === "ADMIN";
+  const canAccessQuotes = Boolean(user?.pricingProfile?.allowUps !== false || user?.pricingProfile?.allowFedex !== false);
+  const canAccessUpsBatch = Boolean(user?.pricingProfile?.allowUps !== false);
 
   return (
     <div className="nav">
@@ -20,13 +22,13 @@ export async function SiteNav() {
         <Link href="/">Home</Link>
         {user ? <Link href="/dashboard">Customer Portal</Link> : <Link href="/login">Login</Link>}
         {user ? <Link href="/wallet">Wallet</Link> : null}
-        {user ? <Link href={"/quotes" as Route}>Quotes</Link> : null}
+        {user && canAccessQuotes ? <Link href={"/quotes" as Route}>Quotes</Link> : null}
         {user ? <Link href={"/account" as Route}>Account</Link> : null}
         {user ? <Link href={"/payments" as Route}>Payments</Link> : null}
         {user ? <Link href={"/adjustments" as Route}>Adjustments</Link> : null}
         {user ? <Link href="/addresses">Addresses</Link> : null}
-        {user ? <Link href="/batch/ups">UPS Batch</Link> : null}
-        {user ? <Link href="/batch/history">Batch History</Link> : null}
+        {user && canAccessUpsBatch ? <Link href="/batch/ups">UPS Batch</Link> : null}
+        {user && canAccessUpsBatch ? <Link href="/batch/history">Batch History</Link> : null}
         {user ? <Link href="/orders">Orders</Link> : null}
         {isAdmin ? <Link href="/admin">Admin</Link> : null}
         {isAdmin ? <Link href="/admin/orders">Admin Orders</Link> : null}
