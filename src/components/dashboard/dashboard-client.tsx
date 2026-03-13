@@ -5,6 +5,7 @@ import Link from "next/link";
 import { PaymentCheckout } from "@/components/dashboard/payment-checkout";
 import type {
   AddressValidationResult,
+  CarrierCode,
   CarrierRate,
   CheckoutDraft,
   OrderDraft,
@@ -17,6 +18,7 @@ import type {
 } from "@/lib/domain-types";
 import { COUNTRY_OPTIONS } from "@/lib/countries";
 import { isInternationalShipment, sumCustomsItems } from "@/lib/international";
+import { applyPackageTypePreset, getPackageTypeRules, packageTypeMatchesCarrier, PACKAGE_TYPE_OPTIONS, resolveCarrierPackagePreset } from "@/lib/package-types";
 
 const buttonBaseStyle = {
   display: "inline-flex",
@@ -157,6 +159,7 @@ export function DashboardClient({
   const [shipment, setShipment] = useState(initialShipment);
   const [quote, setQuote] = useState(initialQuote);
   const [currentQuoteId, setCurrentQuoteId] = useState(initialQuote.quoteId ?? null);
+  const [preferredCarrier, setPreferredCarrier] = useState<CarrierCode | "ALL">("ALL");
   const [selectedRate, setSelectedRate] = useState<CarrierRate | null>(initialQuote.rates[0] ?? null);
   const [orderDraft, setOrderDraft] = useState<OrderDraft | null>(null);
   const [checkoutDraft, setCheckoutDraft] = useState<CheckoutDraft | null>(null);
@@ -183,6 +186,9 @@ export function DashboardClient({
   const internationalShipment = isInternationalShipment(shipment);
   const customsItems = shipment.customs?.items ?? [];
   const customsValueTotal = sumCustomsItems(customsItems);
+  const packageTypeRules = getPackageTypeRules(shipment.packageType);
+  const filteredPackageTypeOptions = PACKAGE_TYPE_OPTIONS.filter((option) => packageTypeMatchesCarrier(option.value, preferredCarrier));
+  const visibleRates = quote.rates.filter((rate) => preferredCarrier === "ALL" || rate.carrier === preferredCarrier);
   const lastPostalLookup = useRef<{ shipFrom: string; shipTo: string }>({
     shipFrom: "",
     shipTo: ""
@@ -207,6 +213,23 @@ export function DashboardClient({
       setIsQuotePending(false);
     }
   }, [quote]);
+
+  useEffect(() => {
+    if (preferredCarrier !== "ALL" && !packageTypeMatchesCarrier(shipment.packageType, preferredCarrier)) {
+      setShipment((current) => applyPackageTypePreset(current, "CUSTOMER_SUPPLIED"));
+    }
+  }, [preferredCarrier, shipment.packageType]);
+
+  useEffect(() => {
+    if (!visibleRates.length) {
+      setSelectedRate(null);
+      return;
+    }
+
+    if (!selectedRate || !visibleRates.some((rate) => rate.carrier === selectedRate.carrier && rate.serviceCode === selectedRate.serviceCode)) {
+      setSelectedRate(visibleRates[0]);
+    }
+  }, [preferredCarrier, quote, selectedRate, visibleRates]);
 
   useEffect(() => {
     const countryCode = shipment.shipFrom.countryCode.trim().toUpperCase();
@@ -307,6 +330,11 @@ export function DashboardClient({
         [key]: value
       }
     }));
+  }
+
+  function updatePackageType(nextType: ShipmentInput["packageType"]) {
+    setShipment((current) => applyPackageTypePreset(current, nextType));
+    resetDraftState();
   }
 
   function updateCustomsField<K extends keyof NonNullable<ShipmentInput["customs"]>>(key: K, value: NonNullable<ShipmentInput["customs"]>[K]) {
@@ -825,9 +853,25 @@ export function DashboardClient({
             <div className="workbench-block" style={sectionCardStyle}>
               <h3 style={{ marginTop: 0 }}>Package and service options</h3>
               <div className="form-grid">
-                <label className="field"><span>Length (in)</span><input type="number" min="0" step="0.1" value={shipment.packageLength} onChange={(e) => updateField("packageLength", Number(e.target.value))} /></label>
-                <label className="field"><span>Width (in)</span><input type="number" min="0" step="0.1" value={shipment.packageWidth} onChange={(e) => updateField("packageWidth", Number(e.target.value))} /></label>
-                <label className="field"><span>Height (in)</span><input type="number" min="0" step="0.1" value={shipment.packageHeight} onChange={(e) => updateField("packageHeight", Number(e.target.value))} /></label>
+                <label className="field">
+                  <span>Carrier preference</span>
+                  <select value={preferredCarrier} onChange={(e) => setPreferredCarrier(e.target.value as CarrierCode | "ALL")}>
+                    <option value="ALL">Compare both carriers</option>
+                    <option value="UPS">UPS</option>
+                    <option value="FEDEX">FedEx</option>
+                  </select>
+                </label>
+                <label className="field">
+                  <span>Package type</span>
+                  <select value={shipment.packageType} onChange={(e) => updatePackageType(e.target.value as ShipmentInput["packageType"])}>
+                    {filteredPackageTypeOptions.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </label>
+                {!packageTypeRules.hideDimensions ? <label className="field"><span>Length (in)</span><input type="number" min="0" step="0.1" value={shipment.packageLength} onChange={(e) => updateField("packageLength", Number(e.target.value))} /></label> : null}
+                {!packageTypeRules.hideDimensions ? <label className="field"><span>Width (in)</span><input type="number" min="0" step="0.1" value={shipment.packageWidth} onChange={(e) => updateField("packageWidth", Number(e.target.value))} /></label> : null}
+                {!packageTypeRules.hideDimensions ? <label className="field"><span>Height (in)</span><input type="number" min="0" step="0.1" value={shipment.packageHeight} onChange={(e) => updateField("packageHeight", Number(e.target.value))} /></label> : null}
                 <label className="field"><span>Weight (lb)</span><input type="number" min="0" step="0.1" value={shipment.packageWeight} onChange={(e) => updateField("packageWeight", Number(e.target.value))} /></label>
                 <label className="field"><span>Declared value (USD)</span><input type="number" min="0" step="0.01" value={shipment.declaredValue} onChange={(e) => updateField("declaredValue", Number(e.target.value))} /></label>
                 <label className="field"><span>Ship date</span><input type="date" value={shipment.shipDate ? shipment.shipDate.slice(0, 10) : ""} onChange={(e) => updateField("shipDate", e.target.value)} /></label>
@@ -835,6 +879,8 @@ export function DashboardClient({
                 <label className="field"><span>Signature required</span><select value={shipment.signatureRequired ? "yes" : "no"} onChange={(e) => updateField("signatureRequired", e.target.value === "yes")}><option value="no">No</option><option value="yes">Yes</option></select></label>
                 <label className="field"><span>UPS Simple Rate</span><select value={shipment.simpleRate ? "yes" : "no"} onChange={(e) => updateField("simpleRate", e.target.value === "yes")}><option value="yes">Yes</option><option value="no">No</option></select></label>
               </div>
+              {preferredCarrier !== "ALL" ? <p className="lookup-note">Package types are filtered for {preferredCarrier}. Switch back to compare mode to see all presets.</p> : null}
+              {packageTypeRules.note ? <p className="lookup-note">{packageTypeRules.note}</p> : null}
             </div>
 
             {internationalShipment ? (
@@ -977,6 +1023,7 @@ export function DashboardClient({
               <p className="muted">Carrier cost: {money(selectedRate.carrierCost)}</p>
               <p className="muted">Margin: {money(selectedRate.customerPrice - selectedRate.carrierCost)}</p>
               <p className="muted">Wallet available: {money(walletBalance)}</p>
+              <p className="muted">Package preset: {resolveCarrierPackagePreset(selectedRate.carrier, shipment.packageType).label}</p>
               <p className="muted">Shipment mode: {internationalShipment ? "International" : "Domestic"}</p>
               {selectedRate.carrier === "UPS" ? <p className="muted">Simple Rate: {shipment.simpleRate ? "Requested" : "Off"}</p> : null}
               {selectedRate.carrier === "FEDEX" ? <p className="muted">FedEx purchase environment: {fedexPurchaseStatus?.environment ?? "unknown"}. {fedexPurchaseStatus?.diagnostic ?? "FedEx purchase status unavailable."}</p> : null}
@@ -988,7 +1035,7 @@ export function DashboardClient({
               </div>
               {!walletCanCoverSelectedRate ? <p className="muted">Wallet balance is below this label cost. Add funds at <Link href="/wallet">/wallet</Link> or continue with Stripe checkout.</p> : null}
             </>
-          ) : <p className="muted">Get a quote to choose a carrier service.</p>}
+          ) : <p className="muted">{preferredCarrier === "ALL" ? "Get a quote to choose a carrier service." : `Get a ${preferredCarrier} quote to choose a carrier service.`}</p>}
           {orderDraft ? <div><p className="muted">Draft order: {orderDraft.id}</p><p className="muted">Status: {orderDraft.status}</p>{internationalShipment ? <p className="muted"><Link href={`/orders/${orderDraft.id}/commercial-invoice`} target="_blank">Open commercial invoice preview</Link></p> : null}</div> : null}
           {orderMessage ? <p className="muted">{orderMessage}</p> : null}
           {checkoutDraft ? <div><p className="muted">Payment intent: {checkoutDraft.paymentIntentId}</p><p className="muted">Checkout mode: {checkoutDraft.paymentMode}</p><p className="muted">Amount: {money(checkoutDraft.amount)}</p><p className="muted">Status: {checkoutDraft.status}</p></div> : null}
@@ -1066,10 +1113,15 @@ export function DashboardClient({
         <table>
           <thead><tr><th>Pick</th><th>Carrier</th><th>Service</th><th>Billing account</th><th>Transit</th><th>Carrier cost</th><th>Customer price</th><th>Margin</th></tr></thead>
           <tbody>
-            {quote.rates.map((rate) => {
+            {visibleRates.map((rate) => {
               const selected = selectedRate?.carrier === rate.carrier && selectedRate?.serviceCode === rate.serviceCode;
               return <tr key={`${rate.carrier}-${rate.serviceCode}`}><td><button className="button" type="button" onClick={() => chooseRate(rate)}>{selected ? "Selected" : "Choose"}</button></td><td>{rate.carrier}</td><td>{rate.serviceName}</td><td>{rate.accountLabel ?? rate.accountNumber ?? "-"}</td><td>{rate.transitDays} day(s)</td><td>{money(rate.carrierCost)}</td><td>{money(rate.customerPrice)}</td><td>{money(rate.customerPrice - rate.carrierCost)}</td></tr>;
             })}
+            {!visibleRates.length ? (
+              <tr>
+                <td colSpan={8}>No {preferredCarrier === "ALL" ? "carrier" : preferredCarrier} services returned for this shipment.</td>
+              </tr>
+            ) : null}
           </tbody>
         </table>
       </section>
