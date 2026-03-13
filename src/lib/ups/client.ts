@@ -1,5 +1,6 @@
 import { env } from "@/lib/config";
 import type { AddressValidationResult, CarrierRate, ShipmentInput, ValidatableAddress } from "@/lib/domain-types";
+import { buildUpsInternationalForms } from "@/lib/carriers/customs";
 
 type UpsSimpleRateCode = "XS" | "S" | "M" | "L" | "XL";
 
@@ -203,6 +204,7 @@ export async function requestUpsShipment(accessToken: string, args: {
   const accountNumber = rate.accountNumber ?? env.UPS_ACCOUNT_NUMBER;
   const simpleRateCode = getUpsSimpleRateCode(shipment);
   const packageServiceOptions = buildUpsPackageServiceOptions(shipment);
+  const internationalForms = buildUpsInternationalForms(shipment);
 
   if (!accountNumber) {
     throw new Error("No UPS account number is available for shipment purchase.");
@@ -225,7 +227,7 @@ export async function requestUpsShipment(accessToken: string, args: {
             Number: shipment.shipFrom.phone
           },
           Address: {
-            AddressLine: [shipment.shipFrom.line1],
+            AddressLine: [shipment.shipFrom.line1, shipment.shipFrom.line2].filter(Boolean),
             City: shipment.shipFrom.city,
             StateProvinceCode: shipment.shipFrom.state,
             PostalCode: shipment.shipFrom.postalCode,
@@ -238,8 +240,9 @@ export async function requestUpsShipment(accessToken: string, args: {
           Phone: {
             Number: shipment.shipTo.phone
           },
+          EMailAddress: shipment.shipTo.email?.trim() || undefined,
           Address: {
-            AddressLine: [shipment.shipTo.line1],
+            AddressLine: [shipment.shipTo.line1, shipment.shipTo.line2].filter(Boolean),
             City: shipment.shipTo.city,
             StateProvinceCode: shipment.shipTo.state,
             PostalCode: shipment.shipTo.postalCode,
@@ -254,7 +257,7 @@ export async function requestUpsShipment(accessToken: string, args: {
             Number: shipment.shipFrom.phone
           },
           Address: {
-            AddressLine: [shipment.shipFrom.line1],
+            AddressLine: [shipment.shipFrom.line1, shipment.shipFrom.line2].filter(Boolean),
             City: shipment.shipFrom.city,
             StateProvinceCode: shipment.shipFrom.state,
             PostalCode: shipment.shipFrom.postalCode,
@@ -269,6 +272,11 @@ export async function requestUpsShipment(accessToken: string, args: {
             }
           }
         },
+        ShipmentServiceOptions: internationalForms
+          ? {
+              InternationalForms: internationalForms
+            }
+          : undefined,
         Service: {
           Code: rate.serviceCode
         },

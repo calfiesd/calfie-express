@@ -1,5 +1,6 @@
 import { env } from "@/lib/config";
 import type { CarrierRate, ShipmentInput } from "@/lib/domain-types";
+import { buildFedExCustomsClearanceDetail } from "@/lib/carriers/customs";
 
 type FedExRateRequest = {
   accountNumber: { value: string };
@@ -254,6 +255,7 @@ function buildFedExShipmentRequest(args: {
   rate: CarrierRate;
 }) {
   const { orderId, shipment, rate } = args;
+  const customsClearanceDetail = buildFedExCustomsClearanceDetail(shipment);
 
   const packageLineItem: Record<string, unknown> = {
     weight: {
@@ -289,10 +291,11 @@ function buildFedExShipmentRequest(args: {
         contact: {
           personName: shipment.shipFrom.name,
           companyName: shipment.shipFrom.company ?? shipment.shipFrom.name,
-          phoneNumber: shipment.shipFrom.phone
+          phoneNumber: shipment.shipFrom.phone,
+          emailAddress: shipment.shipFrom.email?.trim() || undefined
         },
         address: {
-          streetLines: [shipment.shipFrom.line1],
+          streetLines: [shipment.shipFrom.line1, shipment.shipFrom.line2].filter(Boolean),
           city: shipment.shipFrom.city,
           stateOrProvinceCode: shipment.shipFrom.state,
           postalCode: shipment.shipFrom.postalCode,
@@ -304,10 +307,11 @@ function buildFedExShipmentRequest(args: {
         contact: {
           personName: shipment.shipTo.name,
           companyName: shipment.shipTo.company ?? shipment.shipTo.name,
-          phoneNumber: shipment.shipTo.phone
+          phoneNumber: shipment.shipTo.phone,
+          emailAddress: shipment.shipTo.email?.trim() || undefined
         },
         address: {
-          streetLines: [shipment.shipTo.line1],
+          streetLines: [shipment.shipTo.line1, shipment.shipTo.line2].filter(Boolean),
           city: shipment.shipTo.city,
           stateOrProvinceCode: shipment.shipTo.state,
           postalCode: shipment.shipTo.postalCode,
@@ -337,6 +341,7 @@ function buildFedExShipmentRequest(args: {
         }
       ],
       totalPackageCount: 1,
+      customsClearanceDetail,
       customerReferences: [
         {
           customerReferenceType: "CUSTOMER_REFERENCE",
