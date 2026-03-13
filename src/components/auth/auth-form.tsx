@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { CSSProperties, useState } from "react";
+import { FormEvent, type CSSProperties, useState } from "react";
 import { useRouter } from "next/navigation";
 
 const authButtonBaseStyle: CSSProperties = {
@@ -146,6 +146,17 @@ export function AuthForm() {
     }
   }
 
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (mode === "login") {
+      await submitLogin();
+      return;
+    }
+
+    await submitRegistration();
+  }
+
   return (
     <section className="section card">
       <p className="eyebrow">Customer access</p>
@@ -183,69 +194,70 @@ export function AuthForm() {
         </button>
       </div>
 
-      {mode === "login" ? (
-        <div className="form-grid">
-          <label className="field">
-            <span>Email</span>
-            <input
-              value={login.email}
-              onChange={(event) => setLogin((current) => ({ ...current, email: event.target.value }))}
-            />
-          </label>
-          <label className="field">
-            <span>Password</span>
-            <input
-              type="password"
-              value={login.password}
-              onChange={(event) => setLogin((current) => ({ ...current, password: event.target.value }))}
-            />
-          </label>
-        </div>
-      ) : (
-        <div className="form-grid">
-          <label className="field">
-            <span>Name</span>
-            <input
-              value={registration.name}
-              onChange={(event) => setRegistration((current) => ({ ...current, name: event.target.value }))}
-            />
-          </label>
-          <label className="field">
-            <span>Company</span>
-            <input
-              value={registration.companyName}
-              onChange={(event) => setRegistration((current) => ({ ...current, companyName: event.target.value }))}
-            />
-          </label>
-          <label className="field">
-            <span>Email</span>
-            <input
-              value={registration.email}
-              onChange={(event) => setRegistration((current) => ({ ...current, email: event.target.value }))}
-            />
-          </label>
-          <label className="field">
-            <span>Password</span>
-            <input
-              type="password"
-              value={registration.password}
-              onChange={(event) => setRegistration((current) => ({ ...current, password: event.target.value }))}
-            />
-          </label>
-        </div>
-      )}
+      <form onSubmit={handleSubmit}>
+        {mode === "login" ? (
+          <div className="form-grid">
+            <label className="field">
+              <span>Email</span>
+              <input
+                value={login.email}
+                onChange={(event) => setLogin((current) => ({ ...current, email: event.target.value }))}
+              />
+            </label>
+            <label className="field">
+              <span>Password</span>
+              <input
+                type="password"
+                value={login.password}
+                onChange={(event) => setLogin((current) => ({ ...current, password: event.target.value }))}
+              />
+            </label>
+          </div>
+        ) : (
+          <div className="form-grid">
+            <label className="field">
+              <span>Name</span>
+              <input
+                value={registration.name}
+                onChange={(event) => setRegistration((current) => ({ ...current, name: event.target.value }))}
+              />
+            </label>
+            <label className="field">
+              <span>Company</span>
+              <input
+                value={registration.companyName}
+                onChange={(event) => setRegistration((current) => ({ ...current, companyName: event.target.value }))}
+              />
+            </label>
+            <label className="field">
+              <span>Email</span>
+              <input
+                value={registration.email}
+                onChange={(event) => setRegistration((current) => ({ ...current, email: event.target.value }))}
+              />
+            </label>
+            <label className="field">
+              <span>Password</span>
+              <input
+                type="password"
+                value={registration.password}
+                onChange={(event) => setRegistration((current) => ({ ...current, password: event.target.value }))}
+              />
+            </label>
+          </div>
+        )}
 
-      <div className="actions">
-        <button
-          className="button primary"
-          style={isPending ? authDisabledPrimaryStyle : authPrimaryButtonStyle}
-          type="button"
-          onClick={mode === "login" ? submitLogin : submitRegistration}
-          disabled={isPending}
-        >
-          {isPending ? "Working..." : mode === "login" ? "Sign in" : "Create account"}
-        </button>
-      </div>
+        <div className="actions">
+          <button
+            className="button primary"
+            style={isPending ? authDisabledPrimaryStyle : authPrimaryButtonStyle}
+            type="submit"
+            disabled={isPending}
+          >
+            {isPending ? "Working..." : mode === "login" ? "Sign in" : "Create account"}
+          </button>
+        </div>
+      </form>
 
       {message ? <p className="muted">{message}</p> : null}
     </section>

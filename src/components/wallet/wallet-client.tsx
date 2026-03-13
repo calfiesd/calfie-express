@@ -128,6 +128,7 @@ export function WalletClient({ initialWallet, stripePublishableKey, stripeConfig
   const [wallet, setWallet] = useState(initialWallet);
   const [manualRequests, setManualRequests] = useState(initialManualTopUpRequests);
   const [amount, setAmount] = useState("25");
+  const [manualAmount, setManualAmount] = useState("25");
   const [draft, setDraft] = useState<WalletTopUpDraft | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [creatingDraft, setCreatingDraft] = useState(false);
@@ -175,7 +176,7 @@ export function WalletClient({ initialWallet, stripePublishableKey, stripeConfig
 
   async function submitManualRequest() {
     setMessage(null);
-    const normalizedAmount = Number(amount);
+    const normalizedAmount = Number(manualAmount);
 
     if (!(normalizedAmount >= 1)) {
       setMessage("Please enter a manual top-up amount of at least $1.00.");
@@ -245,9 +246,9 @@ export function WalletClient({ initialWallet, stripePublishableKey, stripeConfig
             <button className="button primary" type="button" onClick={createDraft} disabled={creatingDraft}>
               {creatingDraft ? "Preparing payment..." : "Prepare top-up"}
             </button>
-            <button className="button" type="button" onClick={() => setAmount("25")}>$25</button>
-            <button className="button" type="button" onClick={() => setAmount("50")}>$50</button>
-            <button className="button" type="button" onClick={() => setAmount("100")}>$100</button>
+            <button className="button" type="button" onClick={() => { setAmount("25"); setManualAmount("25"); }}>$25</button>
+            <button className="button" type="button" onClick={() => { setAmount("50"); setManualAmount("50"); }}>$50</button>
+            <button className="button" type="button" onClick={() => { setAmount("100"); setManualAmount("100"); }}>$100</button>
           </div>
           {!stripeConfigured ? <p className="muted">Stripe is not configured, so wallet funding runs in demo mode.</p> : null}
           {message ? <p className="muted">{message}</p> : null}
@@ -319,6 +320,10 @@ export function WalletClient({ initialWallet, stripePublishableKey, stripeConfig
               </ol>
               <div className="form-grid" style={{ marginTop: "16px" }}>
                 <label className="field">
+                  <span>Transfer amount</span>
+                  <input type="number" min="1" step="0.01" value={manualAmount} onChange={(event) => setManualAmount(event.target.value)} />
+                </label>
+                <label className="field">
                   <span>Payment method</span>
                   <select value={manualMethod} onChange={(event) => setManualMethod(event.target.value)}>
                     <option value="Bank transfer">Bank transfer</option>
@@ -337,7 +342,7 @@ export function WalletClient({ initialWallet, stripePublishableKey, stripeConfig
               </div>
               <div className="actions">
                 <button className="button" type="button" onClick={submitManualRequest} disabled={manualSubmitting}>
-                  {manualSubmitting ? "Submitting..." : "Submit manual top-up request"}
+                  {manualSubmitting ? "Submitting..." : `Submit ${money(Number(manualAmount))} manual top-up request`}
                 </button>
               </div>
               {manualTopUp.note ? <p className="muted">{manualTopUp.note}</p> : null}
@@ -367,7 +372,7 @@ export function WalletClient({ initialWallet, stripePublishableKey, stripeConfig
                   <td>{request.status}</td>
                   <td>
                     <div>{request.reference ?? "-"}</div>
-                    {request.note ? <div className="muted">{request.note}</div> : null}
+                    {request.note ? <div className="muted">Note: {request.note}</div> : null}
                     {request.processedByAdmin ? <div className="muted">Processed by {request.processedByAdmin}</div> : null}
                   </td>
                 </tr>

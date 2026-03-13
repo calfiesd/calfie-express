@@ -797,7 +797,8 @@ export function CustomerManagement({ customers }: Props) {
                           <td>{request.status}</td>
                           <td>
                             <div>{request.reference ?? "-"}</div>
-                            {request.note ? <div className="muted">{request.note}</div> : null}
+                            {request.note ? <div className="muted">Note: {request.note}</div> : null}
+                            {request.walletTransactionId ? <div className="muted">Wallet txn: {request.walletTransactionId}</div> : null}
                             {request.processedByAdmin ? <div className="muted">Processed by {request.processedByAdmin}</div> : null}
                           </td>
                         </tr>
