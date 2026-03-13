@@ -11,6 +11,18 @@ export const PACKAGE_TYPE_OPTIONS: Array<{ value: ShipmentPackageType; label: st
   { value: "FEDEX_TUBE", label: "FedEx Tube" }
 ];
 
+export function getPackageTypeCarrier(packageType: ShipmentPackageType) {
+  if (packageType.startsWith("UPS_")) {
+    return "UPS" as const;
+  }
+
+  if (packageType.startsWith("FEDEX_")) {
+    return "FEDEX" as const;
+  }
+
+  return "ALL" as const;
+}
+
 export function packageTypeMatchesCarrier(packageType: ShipmentPackageType, carrier: CarrierCode | "ALL") {
   if (carrier === "ALL" || packageType === "CUSTOMER_SUPPLIED") {
     return true;
@@ -26,51 +38,61 @@ export function getPackageTypeLabel(packageType: ShipmentPackageType) {
 }
 
 export function getPackageTypeRules(packageType: ShipmentPackageType) {
+  const carrier = getPackageTypeCarrier(packageType);
+
   switch (packageType) {
     case "UPS_LETTER":
       return {
+        carrier,
         hideDimensions: true,
         maxWeightLbs: 1,
         note: "UPS Letter uses carrier-standard packaging. Dimensions are fixed and weight must stay at or below 1 lb."
       };
     case "UPS_PAK":
       return {
+        carrier,
         hideDimensions: true,
         maxWeightLbs: null,
         note: "UPS Pak uses carrier packaging with fixed dimensions. Enter weight only and confirm the contents are suitable for a flat pak."
       };
     case "UPS_TUBE":
       return {
+        carrier,
         hideDimensions: true,
         maxWeightLbs: null,
         note: "UPS Tube uses carrier packaging with fixed dimensions. Enter weight only and confirm the contents are suitable for tube packaging."
       };
     case "FEDEX_ENVELOPE":
       return {
+        carrier,
         hideDimensions: true,
         maxWeightLbs: 1,
         note: "FedEx Envelope uses carrier-standard packaging. Dimensions are fixed and weight must stay at or below 1 lb."
       };
     case "FEDEX_PAK":
       return {
+        carrier,
         hideDimensions: true,
         maxWeightLbs: 5.5,
         note: "FedEx Pak uses carrier packaging with fixed dimensions. Weight must stay at or below 5.5 lb."
       };
     case "FEDEX_BOX":
       return {
+        carrier,
         hideDimensions: true,
         maxWeightLbs: 20,
         note: "FedEx Box uses carrier-standard box dimensions. Weight must stay at or below 20 lb for the standard package range."
       };
     case "FEDEX_TUBE":
       return {
+        carrier,
         hideDimensions: true,
         maxWeightLbs: 20,
         note: "FedEx Tube uses a fixed carrier tube size. Weight must stay at or below 20 lb."
       };
     default:
       return {
+        carrier,
         hideDimensions: false,
         maxWeightLbs: null,
         note: null

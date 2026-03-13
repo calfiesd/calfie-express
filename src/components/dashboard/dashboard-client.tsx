@@ -18,7 +18,7 @@ import type {
 } from "@/lib/domain-types";
 import { COUNTRY_OPTIONS } from "@/lib/countries";
 import { isInternationalShipment, sumCustomsItems } from "@/lib/international";
-import { applyPackageTypePreset, getPackageTypeRules, packageTypeMatchesCarrier, PACKAGE_TYPE_OPTIONS, resolveCarrierPackagePreset } from "@/lib/package-types";
+import { applyPackageTypePreset, getPackageTypeCarrier, getPackageTypeRules, packageTypeMatchesCarrier, PACKAGE_TYPE_OPTIONS, resolveCarrierPackagePreset } from "@/lib/package-types";
 
 const buttonBaseStyle = {
   display: "inline-flex",
@@ -187,6 +187,7 @@ export function DashboardClient({
   const customsItems = shipment.customs?.items ?? [];
   const customsValueTotal = sumCustomsItems(customsItems);
   const packageTypeRules = getPackageTypeRules(shipment.packageType);
+  const packageTypeCarrier = getPackageTypeCarrier(shipment.packageType);
   const filteredPackageTypeOptions = PACKAGE_TYPE_OPTIONS.filter((option) => packageTypeMatchesCarrier(option.value, preferredCarrier));
   const visibleRates = quote.rates.filter((rate) => preferredCarrier === "ALL" || rate.carrier === preferredCarrier);
   const lastPostalLookup = useRef<{ shipFrom: string; shipTo: string }>({
@@ -918,6 +919,15 @@ export function DashboardClient({
               {preferredCarrier === "ALL"
                 ? <p className="lookup-note">Start in compare mode, then choose a service to automatically switch into that carrier workflow.</p>
                 : <p className="lookup-note">Package types are filtered for {preferredCarrier}. Switch back to compare mode to see all presets.</p>}
+              {shipment.packageType !== "CUSTOMER_SUPPLIED" ? (
+                <p className="lookup-note">
+                  This preset belongs to {packageTypeCarrier}. {preferredCarrier === "ALL"
+                    ? "In compare mode, the matching carrier will use this preset and the other carrier will fall back to your own packaging."
+                    : packageTypeCarrier === preferredCarrier
+                      ? `It fully matches the active ${preferredCarrier} workflow.`
+                      : `It does not match the active ${preferredCarrier} workflow and will be reset if you stay on this carrier.`}
+                </p>
+              ) : null}
               {packageTypeRules.note ? <p className="lookup-note">{packageTypeRules.note}</p> : null}
             </div>
 
