@@ -38,6 +38,18 @@ export default async function AdminCustomersPage() {
           }
         : null
     })),
+    manualTopUpRequests: customer.manualTopUpRequests.map((request) => ({
+      id: request.id,
+      amount: Number(request.amount),
+      paymentMethod: request.paymentMethod,
+      reference: request.reference,
+      note: request.note,
+      status: request.status,
+      processedAt: request.processedAt?.toISOString() ?? null,
+      processedByAdmin: request.processedByAdmin,
+      walletTransactionId: request.walletTransactionId,
+      createdAt: request.createdAt.toISOString()
+    })),
     pricingProfile: customer.pricingProfile
       ? {
           markupPercent: Number(customer.pricingProfile.markupPercent),

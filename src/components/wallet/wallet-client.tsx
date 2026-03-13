@@ -101,6 +101,18 @@ type WalletClientProps = {
   stripeConfigured: boolean;
   initialPaymentMethod: PaymentMethodSummary | null;
   customerEmail: string;
+  initialManualTopUpRequests: Array<{
+    id: string;
+    amount: number;
+    paymentMethod: string;
+    reference?: string | null;
+    note?: string | null;
+    status: "PENDING" | "COMPLETED" | "CANCELLED";
+    processedAt?: string | null;
+    processedByAdmin?: string | null;
+    walletTransactionId?: string | null;
+    createdAt: string;
+  }>;
   manualTopUp: {
     enabled: boolean;
     bankName: string;
@@ -112,12 +124,17 @@ type WalletClientProps = {
   };
 };
 
-export function WalletClient({ initialWallet, stripePublishableKey, stripeConfigured, initialPaymentMethod, customerEmail, manualTopUp }: WalletClientProps) {
+export function WalletClient({ initialWallet, stripePublishableKey, stripeConfigured, initialPaymentMethod, customerEmail, initialManualTopUpRequests, manualTopUp }: WalletClientProps) {
   const [wallet, setWallet] = useState(initialWallet);
+  const [manualRequests, setManualRequests] = useState(initialManualTopUpRequests);
   const [amount, setAmount] = useState("25");
   const [draft, setDraft] = useState<WalletTopUpDraft | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [creatingDraft, setCreatingDraft] = useState(false);
+  const [manualSubmitting, setManualSubmitting] = useState(false);
+  const [manualReference, setManualReference] = useState("");
+  const [manualNote, setManualNote] = useState("");
+  const [manualMethod, setManualMethod] = useState("Bank transfer");
   const stripePromise = useMemo(() => {
     if (!stripePublishableKey) {
       return null;
@@ -154,6 +171,43 @@ export function WalletClient({ initialWallet, stripePublishableKey, stripeConfig
     setDraft(payload.checkout as WalletTopUpDraft);
     setMessage(payload.note as string);
     setCreatingDraft(false);
+  }
+
+  async function submitManualRequest() {
+    setMessage(null);
+    const normalizedAmount = Number(amount);
+
+    if (!(normalizedAmount >= 1)) {
+      setMessage("Please enter a manual top-up amount of at least $1.00.");
+      return;
+    }
+
+    setManualSubmitting(true);
+    const response = await fetch("/api/wallet/manual-top-up-request", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        amount: normalizedAmount,
+        paymentMethod: manualMethod,
+        reference: manualReference,
+        note: manualNote
+      })
+    });
+
+    const payload = await response.json().catch(() => null);
+    if (!response.ok || !payload?.request) {
+      setMessage(payload?.message ?? `Manual top-up request failed with status ${response.status}.`);
+      setManualSubmitting(false);
+      return;
+    }
+
+    setManualRequests((current) => [payload.request, ...current]);
+    setManualReference("");
+    setManualNote("");
+    setMessage(payload.message ?? "Manual top-up request submitted.");
+    setManualSubmitting(false);
   }
 
   return (
@@ -263,9 +317,67 @@ export function WalletClient({ initialWallet, stripePublishableKey, stripeConfig
                 <li>Send us the transfer proof or payment reference.</li>
                 <li>We will credit your wallet manually from the admin backend.</li>
               </ol>
+              <div className="form-grid" style={{ marginTop: "16px" }}>
+                <label className="field">
+                  <span>Payment method</span>
+                  <select value={manualMethod} onChange={(event) => setManualMethod(event.target.value)}>
+                    <option value="Bank transfer">Bank transfer</option>
+                    <option value="WeChat">WeChat</option>
+                    <option value="Other offline payment">Other offline payment</option>
+                  </select>
+                </label>
+                <label className="field">
+                  <span>Transfer reference</span>
+                  <input value={manualReference} onChange={(event) => setManualReference(event.target.value)} placeholder="Transaction ID, last 4 digits, screenshot ref, etc." />
+                </label>
+                <label className="field">
+                  <span>Note</span>
+                  <input value={manualNote} onChange={(event) => setManualNote(event.target.value)} placeholder="Anything we should use to match your transfer faster" />
+                </label>
+              </div>
+              <div className="actions">
+                <button className="button" type="button" onClick={submitManualRequest} disabled={manualSubmitting}>
+                  {manualSubmitting ? "Submitting..." : "Submit manual top-up request"}
+                </button>
+              </div>
               {manualTopUp.note ? <p className="muted">{manualTopUp.note}</p> : null}
             </div>
           </div>
+        </section>
+      ) : null}
+
+      {manualTopUp.enabled ? (
+        <section className="section table">
+          <table>
+            <thead>
+              <tr>
+                <th>Manual top-up requests</th>
+                <th>Amount</th>
+                <th>Method</th>
+                <th>Status</th>
+                <th>Reference</th>
+              </tr>
+            </thead>
+            <tbody>
+              {manualRequests.length ? manualRequests.map((request) => (
+                <tr key={request.id}>
+                  <td>{new Date(request.createdAt).toLocaleString()}</td>
+                  <td>{money(request.amount)}</td>
+                  <td>{request.paymentMethod}</td>
+                  <td>{request.status}</td>
+                  <td>
+                    <div>{request.reference ?? "-"}</div>
+                    {request.note ? <div className="muted">{request.note}</div> : null}
+                    {request.processedByAdmin ? <div className="muted">Processed by {request.processedByAdmin}</div> : null}
+                  </td>
+                </tr>
+              )) : (
+                <tr>
+                  <td colSpan={5}>No manual top-up requests yet.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </section>
       ) : null}
 

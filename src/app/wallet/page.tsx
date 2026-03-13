@@ -8,6 +8,7 @@ import { getWalletSummary } from "@/lib/wallet";
 import { getStripeStatus } from "@/lib/payments/stripe";
 import { getDefaultPaymentMethodSummary } from "@/lib/payments/stripe";
 import { env } from "@/lib/config";
+import { getCustomerManualTopUpRequests } from "@/lib/manual-top-ups";
 
 export default async function WalletPage() {
   const user = await requireUser();
@@ -16,7 +17,7 @@ export default async function WalletPage() {
     redirect("/login");
   }
 
-  const [wallet, paymentMethod] = await Promise.all([
+  const [wallet, paymentMethod, manualTopUpRequests] = await Promise.all([
     getWalletSummary(user.id),
     getDefaultPaymentMethodSummary({
       id: user.id,
@@ -25,7 +26,8 @@ export default async function WalletPage() {
       companyName: user.companyName,
       stripeCustomerId: user.stripeCustomerId,
       defaultPaymentMethod: user.defaultPaymentMethod
-    })
+    }),
+    getCustomerManualTopUpRequests(user.id)
   ]);
   const stripe = getStripeStatus();
   const manualTopUp = {
@@ -47,6 +49,7 @@ export default async function WalletPage() {
         stripeConfigured={stripe.configured}
         initialPaymentMethod={paymentMethod}
         customerEmail={user.email}
+        initialManualTopUpRequests={manualTopUpRequests}
         manualTopUp={manualTopUp}
       />
     </>

@@ -25,6 +25,18 @@ type CustomerRow = {
   companyName: string | null;
   walletBalance: number;
   walletTransactions: WalletTransactionRow[];
+  manualTopUpRequests: Array<{
+    id: string;
+    amount: number;
+    paymentMethod: string;
+    reference: string | null;
+    note: string | null;
+    status: "PENDING" | "COMPLETED" | "CANCELLED";
+    processedAt: string | null;
+    processedByAdmin: string | null;
+    walletTransactionId: string | null;
+    createdAt: string;
+  }>;
   pricingProfile: {
     markupPercent: number;
     flatFee: number;
@@ -76,6 +88,7 @@ type CustomerPayload = {
   companyName?: string | null;
   walletBalance?: number | string | null;
   walletTransactions?: WalletTransactionPayload[] | null;
+  manualTopUpRequests?: ManualTopUpRequestPayload[] | null;
   pricingProfile?: PricingProfilePayload | null;
   _count?: {
     orders?: number | string | null;
@@ -93,6 +106,19 @@ type WalletTransactionPayload = {
   description: string;
   createdAt: string | Date;
   order?: WalletTransactionRow["order"];
+};
+
+type ManualTopUpRequestPayload = {
+  id: string;
+  amount: number | string;
+  paymentMethod: string;
+  reference?: string | null;
+  note?: string | null;
+  status: "PENDING" | "COMPLETED" | "CANCELLED";
+  processedAt?: string | Date | null;
+  processedByAdmin?: string | null;
+  walletTransactionId?: string | null;
+  createdAt: string | Date;
 };
 
 type PricingProfilePayload = {
@@ -184,6 +210,22 @@ function normalizeCustomer(customer: CustomerPayload): CustomerRow {
                 status: transaction.order.status
               }
             : null
+        }))
+      : [],
+    manualTopUpRequests: Array.isArray(customer.manualTopUpRequests)
+      ? customer.manualTopUpRequests.map((request: ManualTopUpRequestPayload) => ({
+          id: request.id,
+          amount: Number(request.amount),
+          paymentMethod: request.paymentMethod,
+          reference: request.reference ?? null,
+          note: request.note ?? null,
+          status: request.status,
+          processedAt: request.processedAt
+            ? (typeof request.processedAt === "string" ? request.processedAt : new Date(request.processedAt).toISOString())
+            : null,
+          processedByAdmin: request.processedByAdmin ?? null,
+          walletTransactionId: request.walletTransactionId ?? null,
+          createdAt: typeof request.createdAt === "string" ? request.createdAt : new Date(request.createdAt).toISOString()
         }))
       : [],
     pricingProfile: customer.pricingProfile
@@ -470,7 +512,8 @@ export function CustomerManagement({ customers }: Props) {
       },
       body: JSON.stringify({
         amount: Number((amount * sign).toFixed(2)),
-        note: walletNoteDraft
+        note: walletNoteDraft,
+        manualTopUpRequestId: selected.manualTopUpRequests.find((request) => request.status === "PENDING")?.id ?? null
       })
     });
 
@@ -490,7 +533,8 @@ export function CustomerManagement({ customers }: Props) {
       return {
         ...row,
         walletBalance: Number(payload.wallet.balance ?? row.walletBalance),
-        walletTransactions: Array.isArray(payload.wallet.transactions) ? payload.wallet.transactions : row.walletTransactions
+        walletTransactions: Array.isArray(payload.wallet.transactions) ? payload.wallet.transactions : row.walletTransactions,
+        manualTopUpRequests: Array.isArray(payload.manualTopUpRequests) ? payload.manualTopUpRequests : row.manualTopUpRequests
       };
     }));
     setWalletNoteDraft("");
@@ -732,6 +776,39 @@ export function CustomerManagement({ customers }: Props) {
                   </button>
                 </div>
                 {walletMessage ? <p className="muted">{walletMessage}</p> : null}
+
+                <div className="table" style={{ marginTop: "16px" }}>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Manual top-up requests</th>
+                        <th>Amount</th>
+                        <th>Method</th>
+                        <th>Status</th>
+                        <th>Reference</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selected.manualTopUpRequests.length ? selected.manualTopUpRequests.map((request) => (
+                        <tr key={request.id}>
+                          <td>{new Date(request.createdAt).toLocaleString()}</td>
+                          <td>{money(request.amount)}</td>
+                          <td>{request.paymentMethod}</td>
+                          <td>{request.status}</td>
+                          <td>
+                            <div>{request.reference ?? "-"}</div>
+                            {request.note ? <div className="muted">{request.note}</div> : null}
+                            {request.processedByAdmin ? <div className="muted">Processed by {request.processedByAdmin}</div> : null}
+                          </td>
+                        </tr>
+                      )) : (
+                        <tr>
+                          <td colSpan={5}>No manual top-up requests yet.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
 
                 <div className="table" style={{ marginTop: "16px" }}>
                   <table>

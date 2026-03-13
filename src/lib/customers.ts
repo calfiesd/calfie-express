@@ -32,6 +32,12 @@ export async function getAdminCustomers() {
           }
         }
       },
+      manualTopUpRequests: {
+        orderBy: {
+          createdAt: "desc"
+        },
+        take: 8
+      },
       _count: {
         select: {
           orders: true,
