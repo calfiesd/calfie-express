@@ -687,16 +687,30 @@ export function DashboardClient({
   }
 
   const walletCanCoverSelectedRate = walletBalance >= (selectedRate?.customerPrice ?? Number.POSITIVE_INFINITY);
+  const workflowTitle = preferredCarrier === "ALL" ? "Multi-carrier shipment desk" : `${preferredCarrier} shipment desk`;
+  const workflowCopy = preferredCarrier === "UPS"
+    ? "Build a UPS shipment with UPS-specific packaging presets, live UPS quotes, and purchase controls from one workflow."
+    : preferredCarrier === "FEDEX"
+      ? "Build a FedEx shipment with FedEx packaging presets, quote filtering, and purchase readiness from one workflow."
+      : "Compare UPS and FedEx from one screen, then narrow into the carrier workflow you want to use for this order.";
+  const quoteButtonLabel = preferredCarrier === "ALL"
+    ? "Get carrier quotes"
+    : preferredCarrier === "UPS"
+      ? "Get UPS quotes"
+      : "Get FedEx quotes";
+  const servicePanelTitle = preferredCarrier === "ALL" ? "Selected service" : `${preferredCarrier} service selection`;
+  const packagePresetLabel = selectedRate
+    ? resolveCarrierPackagePreset(selectedRate.carrier, shipment.packageType).label
+    : shipment.packageType;
 
   return (
     <>
       <section className="section hero">
         <div>
           <p className="eyebrow">Customer portal</p>
-          <h1>CALFIE EXPRESS shipping dashboard</h1>
+          <h1>{workflowTitle}</h1>
           <p className="copy">
-            This flow now uses your primary UPS account for live UPS quotes and label purchase, while also showing FedEx comparison
-            pricing so customers can choose between carriers from one screen.
+            {workflowCopy}
           </p>
         </div>
         <div className="card">
@@ -709,20 +723,33 @@ export function DashboardClient({
       </section>
 
       <section className="section" style={statusBannerStyle}>
-        <div style={livePanelStyle}>
-          <p className="eyebrow" style={{ marginBottom: "8px" }}>UPS status</p>
-          <h2 style={{ marginBottom: "8px" }}>Live purchase enabled</h2>
-          <p className="muted" style={{ margin: 0 }}>
-            UPS quotes are live on your primary account and the UPS purchase path is available when you are ready to use it.
-          </p>
-        </div>
-        <div style={cautionPanelStyle}>
-          <p className="eyebrow" style={{ marginBottom: "8px" }}>FedEx status</p>
-          <h2 style={{ marginBottom: "8px" }}>Purchase guarded by safety switch</h2>
-          <p className="muted" style={{ margin: 0 }}>
-            FedEx quotes are currently {quote.fedexStatus?.mode ?? "unknown"}. Purchase status: {fedexPurchaseStatus?.diagnostic ?? "unknown"}.
-          </p>
-        </div>
+        {preferredCarrier !== "FEDEX" ? (
+          <div style={livePanelStyle}>
+            <p className="eyebrow" style={{ marginBottom: "8px" }}>UPS status</p>
+            <h2 style={{ marginBottom: "8px" }}>{preferredCarrier === "UPS" ? "UPS workflow active" : "Live purchase enabled"}</h2>
+            <p className="muted" style={{ margin: 0 }}>
+              UPS quotes are live on your primary account and the UPS purchase path is available when you are ready to use it.
+            </p>
+          </div>
+        ) : null}
+        {preferredCarrier !== "UPS" ? (
+          <div style={cautionPanelStyle}>
+            <p className="eyebrow" style={{ marginBottom: "8px" }}>FedEx status</p>
+            <h2 style={{ marginBottom: "8px" }}>{preferredCarrier === "FEDEX" ? "FedEx workflow active" : "Purchase guarded by safety switch"}</h2>
+            <p className="muted" style={{ margin: 0 }}>
+              FedEx quotes are currently {quote.fedexStatus?.mode ?? "unknown"}. Purchase status: {fedexPurchaseStatus?.diagnostic ?? "unknown"}.
+            </p>
+          </div>
+        ) : null}
+        {preferredCarrier === "ALL" ? null : (
+          <div style={statusPanelStyle}>
+            <p className="eyebrow" style={{ marginBottom: "8px" }}>Workflow mode</p>
+            <h2 style={{ marginBottom: "8px" }}>{preferredCarrier} packaging and quotes only</h2>
+            <p className="muted" style={{ margin: 0 }}>
+              Package presets, visible quote rows, and service selection are currently focused on {preferredCarrier}.
+            </p>
+          </div>
+        )}
       </section>
 
       <section className="section grid-4">
@@ -957,7 +984,7 @@ export function DashboardClient({
             </button>
             <button className="button" type="button" onClick={saveCurrentDestination}>Save destination</button>
             <Link className="button" href="/addresses">Open address book</Link>
-            <button className="button primary" style={isQuotePending ? disabledPrimaryButtonStyle : primaryButtonStyle} type="button" onClick={submitQuote} disabled={isQuotePending}>{isQuotePending ? "Loading quotes..." : "Get carrier quotes"}</button>
+            <button className="button primary" style={isQuotePending ? disabledPrimaryButtonStyle : primaryButtonStyle} type="button" onClick={submitQuote} disabled={isQuotePending}>{isQuotePending ? "Loading quotes..." : quoteButtonLabel}</button>
           </div>
           {quoteError ? <p className="muted">{quoteError}</p> : null}
           {addressValidation ? (
@@ -1013,7 +1040,7 @@ export function DashboardClient({
         </div>
 
         <div className="card service-rail">
-          <h2>Selected service</h2>
+          <h2>{servicePanelTitle}</h2>
           {selectedRate ? (
             <>
               <p className="muted">Carrier: {selectedRate.carrier}</p>
@@ -1023,7 +1050,7 @@ export function DashboardClient({
               <p className="muted">Carrier cost: {money(selectedRate.carrierCost)}</p>
               <p className="muted">Margin: {money(selectedRate.customerPrice - selectedRate.carrierCost)}</p>
               <p className="muted">Wallet available: {money(walletBalance)}</p>
-              <p className="muted">Package preset: {resolveCarrierPackagePreset(selectedRate.carrier, shipment.packageType).label}</p>
+              <p className="muted">Package preset: {packagePresetLabel}</p>
               <p className="muted">Shipment mode: {internationalShipment ? "International" : "Domestic"}</p>
               {selectedRate.carrier === "UPS" ? <p className="muted">Simple Rate: {shipment.simpleRate ? "Requested" : "Off"}</p> : null}
               {selectedRate.carrier === "FEDEX" ? <p className="muted">FedEx purchase environment: {fedexPurchaseStatus?.environment ?? "unknown"}. {fedexPurchaseStatus?.diagnostic ?? "FedEx purchase status unavailable."}</p> : null}
@@ -1035,7 +1062,7 @@ export function DashboardClient({
               </div>
               {!walletCanCoverSelectedRate ? <p className="muted">Wallet balance is below this label cost. Add funds at <Link href="/wallet">/wallet</Link> or continue with Stripe checkout.</p> : null}
             </>
-          ) : <p className="muted">{preferredCarrier === "ALL" ? "Get a quote to choose a carrier service." : `Get a ${preferredCarrier} quote to choose a carrier service.`}</p>}
+          ) : <p className="muted">{preferredCarrier === "ALL" ? "Get a quote to choose a carrier service." : `Get a ${preferredCarrier} quote to choose a service from that workflow.`}</p>}
           {orderDraft ? <div><p className="muted">Draft order: {orderDraft.id}</p><p className="muted">Status: {orderDraft.status}</p>{internationalShipment ? <p className="muted"><Link href={`/orders/${orderDraft.id}/commercial-invoice`} target="_blank">Open commercial invoice preview</Link></p> : null}</div> : null}
           {orderMessage ? <p className="muted">{orderMessage}</p> : null}
           {checkoutDraft ? <div><p className="muted">Payment intent: {checkoutDraft.paymentIntentId}</p><p className="muted">Checkout mode: {checkoutDraft.paymentMode}</p><p className="muted">Amount: {money(checkoutDraft.amount)}</p><p className="muted">Status: {checkoutDraft.status}</p></div> : null}
