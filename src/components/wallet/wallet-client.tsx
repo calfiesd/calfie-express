@@ -342,7 +342,7 @@ export function WalletClient({ initialWallet, stripePublishableKey, stripeConfig
               </div>
               <div className="actions">
                 <button className="button" type="button" onClick={submitManualRequest} disabled={manualSubmitting}>
-                  {manualSubmitting ? "Submitting..." : `Submit ${money(Number(manualAmount))} manual top-up request`}
+                  {manualSubmitting ? "Submitting..." : "Submit manual top-up request"}
                 </button>
               </div>
               {manualTopUp.note ? <p className="muted">{manualTopUp.note}</p> : null}
