@@ -338,6 +338,11 @@ export function DashboardClient({
     resetDraftState();
   }
 
+  function returnToCompareMode() {
+    setPreferredCarrier("ALL");
+    resetDraftState();
+  }
+
   function updateCustomsField<K extends keyof NonNullable<ShipmentInput["customs"]>>(key: K, value: NonNullable<ShipmentInput["customs"]>[K]) {
     setShipment((current) => ({
       ...current,
@@ -749,6 +754,9 @@ export function DashboardClient({
             <p className="muted" style={{ margin: 0 }}>
               Package presets, visible quote rows, and service selection are currently focused on {preferredCarrier}.
             </p>
+            <div className="actions" style={{ marginTop: "14px" }}>
+              <button className="button" type="button" onClick={returnToCompareMode}>Back to compare</button>
+            </div>
           </div>
         )}
       </section>
@@ -1062,6 +1070,7 @@ export function DashboardClient({
                 <button className="button primary" style={!selectedRate || isOrderPending ? disabledPrimaryButtonStyle : primaryButtonStyle} type="button" onClick={createOrderDraft} disabled={!selectedRate || isOrderPending}>{isOrderPending ? "Creating draft..." : "Create order draft"}</button>
                 <button className="button" style={isCheckoutPending || !orderDraft ? disabledSecondaryButtonStyle : secondaryButtonStyle} type="button" onClick={createCheckoutDraft} disabled={isCheckoutPending || !orderDraft}>{isCheckoutPending ? "Preparing checkout..." : "Prepare Stripe checkout"}</button>
                 <button className="button" style={isWalletPending || !orderDraft || !walletCanCoverSelectedRate ? disabledSecondaryButtonStyle : secondaryButtonStyle} type="button" onClick={payWithWallet} disabled={isWalletPending || !orderDraft || !walletCanCoverSelectedRate}>{isWalletPending ? "Charging wallet..." : "Pay with wallet"}</button>
+                {preferredCarrier !== "ALL" ? <button className="button" type="button" onClick={returnToCompareMode}>Back to compare</button> : null}
               </div>
               {!walletCanCoverSelectedRate ? <p className="muted">Wallet balance is below this label cost. Add funds at <Link href="/wallet">/wallet</Link> or continue with Stripe checkout.</p> : null}
             </>
