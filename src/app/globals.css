@@ -238,8 +238,7 @@ body {
 .service-rail {
   background: linear-gradient(180deg, rgba(30, 41, 57, 0.97) 0%, rgba(43, 56, 75, 0.97) 100%);
   color: #f5f7fb;
-  position: sticky;
-  top: 20px;
+  position: static;
 }
 
 .service-rail .muted,
@@ -353,6 +352,86 @@ body {
   color: #4d637e;
 }
 
+.ops-shell {
+  display: grid;
+  gap: 18px;
+}
+
+.ops-hero {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: start;
+}
+
+.ops-banner {
+  min-width: 240px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  border: 1px solid rgba(24, 34, 49, 0.12);
+  background: linear-gradient(180deg, rgba(31, 44, 61, 0.96) 0%, rgba(53, 69, 90, 0.96) 100%);
+  color: #f5f7fb;
+}
+
+.ops-banner .muted,
+.invoice-sheet .muted {
+  color: rgba(236, 241, 248, 0.78);
+}
+
+.ops-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.ops-kpi {
+  border-radius: 16px;
+  border: 1px solid rgba(24, 34, 49, 0.1);
+  background: rgba(255, 255, 255, 0.58);
+  padding: 18px;
+}
+
+.invoice-sheet {
+  border-radius: 20px;
+  border: 1px solid rgba(24, 34, 49, 0.12);
+  background: linear-gradient(180deg, rgba(31, 44, 61, 0.96) 0%, rgba(44, 57, 76, 0.96) 100%);
+  color: #f5f7fb;
+  padding: 22px;
+  box-shadow: 0 16px 40px rgba(31, 44, 61, 0.12);
+}
+
+.invoice-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.invoice-panel {
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  padding: 18px;
+}
+
+.invoice-panel h2,
+.invoice-panel h3 {
+  margin-top: 0;
+}
+
+.table.is-compact th {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.table-row-select tbody tr {
+  cursor: pointer;
+}
+
+.table-row-select tbody tr:hover {
+  background: rgba(29, 36, 48, 0.04);
+}
+
 .code {
   padding: 14px;
   border-radius: 16px;
@@ -384,12 +463,15 @@ body {
     grid-template-columns: 1fr;
   }
 
-  .service-rail {
-    position: static;
-  }
-
   .workbench-header {
     flex-direction: column;
+  }
+
+  .ops-hero,
+  .invoice-grid,
+  .ops-grid {
+    grid-template-columns: 1fr;
+    display: grid;
   }
 }
 
